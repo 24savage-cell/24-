@@ -1,0 +1,319 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<title>野性档案 SAVAGE ARCHIVE — 24.savage 的图片展览</title>
+<meta name="description" content="野性档案 SAVAGE ARCHIVE · 策展人 24.savage · 一座向所有观众开放的公网图片展览馆，支持注册账号或匿名投稿。">
+<meta property="og:title" content="野性档案 SAVAGE ARCHIVE — 24.savage">
+<meta property="og:description" content="一座向所有观众开放的公网图片展览馆 · 注册或匿名投稿你的作品">
+<meta property="og:type" content="website">
+<meta property="og:image" content="https://24savage-cell.github.io/works/p1.jpg">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' fill='%23ff4b1f'/%3E%3Ctext x='32' y='44' font-family='Georgia,serif' font-weight='700' font-size='34' fill='%230e0d0b' text-anchor='middle'%3E24%3C/text%3E%3C/svg%3E">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,300;9..144,600;9..144,900&family=IBM+Plex+Mono:wght@400;600&family=Noto+Serif+SC:wght@600;900&family=Noto+Sans+SC:wght@400;500;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<!-- 开场印记 -->
+<div id="boot" aria-hidden="true">
+  <div class="boot-stamp">
+    <span class="boot-cn">野性档案</span>
+    <span class="boot-en">SAVAGE&nbsp;ARCHIVE</span>
+    <span class="boot-by">CURATED BY 24.SAVAGE</span>
+  </div>
+</div>
+
+<div class="grain" aria-hidden="true"></div>
+
+<!-- 侧轨（桌面端） -->
+<aside class="rail" aria-hidden="true">
+  <div class="rail-brand">SAVAGE ARCHIVE — EST. 2026</div>
+  <div class="rail-dot"></div>
+  <div class="rail-no">FILE / 野-2026</div>
+</aside>
+
+<!-- 顶栏 -->
+<header class="topbar">
+  <a class="brand" href="#top" aria-label="野性档案 首页">
+    <span class="brand-mark">24</span>
+    <span class="brand-txt">野性档案<small>SAVAGE&nbsp;ARCHIVE</small></span>
+  </a>
+  <div class="topbar-actions">
+    <button id="statusChip" class="chip chip-init" type="button" title="云同步状态">● 云端待激活</button>
+    <button id="authBtn" class="btn btn-ghost" type="button">注册 / 登录</button>
+    <button id="meChip" class="chip chip-me" type="button" hidden></button>
+    <button id="mailBtn" class="btn btn-ghost" type="button" title="安全设置">安全</button>
+    <button id="uploadBtn" class="btn btn-solid" type="button">投稿 <span class="btn-en">UPLOAD</span></button>
+  </div>
+</header>
+
+<!-- 主视觉 -->
+<section class="hero" id="top">
+  <div class="hero-frame">
+    <p class="hero-kicker"><span class="kicker-rule"></span>公网图片展览馆 · OPEN SUBMISSION<span class="kicker-rule"></span></p>
+    <h1 class="hero-title">
+      <span class="hero-cn">野性档案</span>
+      <span class="hero-en" aria-hidden="true">SAVAGE<br>ARCHIVE</span>
+    </h1>
+    <p class="hero-by">策展人 CURATOR — <strong>24.savage</strong><span class="hero-sep">/</span>所有人都可以成为参展者</p>
+    <div class="hero-cta">
+      <button class="btn btn-solid btn-big" type="button" data-open-upload>上传作品 <span class="btn-en">SUBMIT</span></button>
+      <button class="btn btn-line btn-big" type="button" data-scroll-gallery>进入展厅 <span class="btn-en">ENTER</span></button>
+    </div>
+  </div>
+  <div class="ticker" aria-hidden="true">
+    <div class="ticker-track" id="tickerTrack"></div>
+  </div>
+</section>
+
+<!-- 展厅 -->
+<main class="hall" id="gallery">
+  <div class="hall-head">
+    <h2 class="hall-title">展厅 <span class="hall-en">THE&nbsp;HALL</span></h2>
+    <div class="hall-tools">
+      <div class="seg" id="sortSeg" role="tablist" aria-label="排序">
+        <button class="seg-btn is-on" data-sort="new" type="button">最新</button>
+        <button class="seg-btn" data-sort="hot" type="button">最热</button>
+      </div>
+      <div class="seg" id="filterSeg" role="tablist" aria-label="筛选">
+        <button class="seg-btn is-on" data-filter="all" type="button">全部</button>
+        <button class="seg-btn" data-filter="seed" type="button">馆藏精选</button>
+        <button class="seg-btn" data-filter="guest" type="button">观众投稿</button>
+      </div>
+      <span class="hall-count" id="hallCount">—</span>
+    </div>
+  </div>
+
+  <div id="grid" class="grid" aria-live="polite"></div>
+
+  <div id="skeletons" class="grid" aria-hidden="true">
+    <div class="plate plate-skeleton"><div class="sk sk-img"></div><div class="sk sk-line"></div></div>
+    <div class="plate plate-skeleton"><div class="sk sk-img"></div><div class="sk sk-line"></div></div>
+    <div class="plate plate-skeleton"><div class="sk sk-img"></div><div class="sk sk-line"></div></div>
+    <div class="plate plate-skeleton"><div class="sk sk-img"></div><div class="sk sk-line"></div></div>
+    <div class="plate plate-skeleton"><div class="sk sk-img"></div><div class="sk sk-line"></div></div>
+    <div class="plate plate-skeleton"><div class="sk sk-img"></div><div class="sk sk-line"></div></div>
+  </div>
+
+  <div id="emptyState" class="empty" hidden>
+    <p class="empty-no">Nº ∅</p>
+    <p class="empty-txt">这个展区还没有作品，成为第一位投稿者。</p>
+    <button class="btn btn-solid" type="button" data-open-upload>我来投稿</button>
+  </div>
+</main>
+
+<!-- 跋 -->
+<footer class="colophon">
+  <div class="colo-top">
+    <div class="colo-brand">
+      <span class="colo-mark">24</span>
+      <div><strong>野性档案 SAVAGE ARCHIVE</strong><small>一座运行在公网上的自由展览馆</small></div>
+    </div>
+    <button id="shareBtn" class="btn btn-line" type="button">复制展厅链接 <span class="btn-en">SHARE</span></button>
+  </div>
+  <div class="colo-grid">
+    <div class="colo-col">
+      <h3>关于展馆</h3>
+      <p>由 <strong>24.savage</strong> 于 2026 年创立。馆藏为「野性档案」系列六件；其余展位向所有访客开放——注册账号或匿名上传均可，图像经浏览器压缩后存入公共云存储，全球可见。</p>
+    </div>
+    <div class="colo-col">
+      <h3>观展须知</h3>
+      <p>账号采用邮箱验证码登录，密码以 PBKDF2 加盐哈希存储；投稿与发送验证码均有人机验证。请只上传你拥有权利的图像，勿上传违规内容。馆方（作者）可随时清空观众展位。</p>
+    </div>
+    <div class="colo-col">
+      <h3>技术档案</h3>
+      <p>托管于 GitHub Pages · 图像与索引经浏览器直传 jsonblob 云存储 · 邮箱验证码经 EmailJS / FormSubmit 发送 · 无服务器 · 无追踪。源码仓库：24savage-cell/24-</p>
+    </div>
+  </div>
+  <p class="colo-end">© 2026 野性档案 — 24.savage · ALL WILD THINGS ARCHIVED</p>
+</footer>
+
+<!-- 灯箱 -->
+<div id="lightbox" class="lightbox" hidden role="dialog" aria-modal="true" aria-label="作品详情">
+  <button class="lb-close" id="lbClose" type="button" aria-label="关闭">✕</button>
+  <button class="lb-nav lb-prev" id="lbPrev" type="button" aria-label="上一件">←</button>
+  <button class="lb-nav lb-next" id="lbNext" type="button" aria-label="下一件">→</button>
+  <figure class="lb-stage">
+    <div class="lb-imgwrap" id="lbImgWrap">
+      <img id="lbImg" alt="">
+      <div id="lbLoad" class="lb-load" hidden><span></span></div>
+    </div>
+    <figcaption class="lb-panel">
+      <p class="lb-no" id="lbNo">Nº —</p>
+      <h3 class="lb-title" id="lbTitle">—</h3>
+      <p class="lb-en" id="lbEn"></p>
+      <p class="lb-desc" id="lbDesc"></p>
+      <dl class="lb-meta">
+        <div><dt>作者 ARTIST</dt><dd id="lbBy">—</dd></div>
+        <div><dt>归档时间 ARCHIVED</dt><dd id="lbTs">—</dd></div>
+        <div><dt>来源 SOURCE</dt><dd id="lbSrc">—</dd></div>
+      </dl>
+      <button id="lbLike" class="lb-like" type="button">♥ <span id="lbLikeN">0</span></button>
+    </figcaption>
+  </figure>
+</div>
+
+<!-- 投稿弹窗 -->
+<div id="uploadModal" class="modal" hidden role="dialog" aria-modal="true" aria-label="投稿作品">
+  <div class="modal-card">
+    <div class="modal-head">
+      <h3>投稿作品 <span class="modal-en">SUBMISSION</span></h3>
+      <button class="modal-x" data-close type="button" aria-label="关闭">✕</button>
+    </div>
+    <div class="modal-body">
+      <div id="dropzone" class="dropzone" tabindex="0" role="button" aria-label="选择或拖入图片">
+        <div class="dz-inner" id="dzInner">
+          <span class="dz-mark">＋</span>
+          <p class="dz-t1">点击选择，或将图片拖到这里</p>
+          <p class="dz-t2">JPG / PNG / WebP · 原图 ≤ 8MB · 展出尺寸自动压缩</p>
+        </div>
+        <img id="dzPreview" class="dz-preview" alt="预览" hidden>
+        <button id="dzReset" class="dz-reset" type="button" hidden>重新选择</button>
+        <input type="file" id="fileInput" accept="image/*" hidden>
+      </div>
+      <label class="field">
+        <span>作品标题 <em>TITLE</em></span>
+        <input id="upTitle" type="text" maxlength="30" placeholder="给这件作品起个名字（30 字内）">
+      </label>
+      <label class="field">
+        <span>作品自述 <em>NOTES</em></span>
+        <textarea id="upDesc" rows="2" maxlength="140" placeholder="一句话描述它（140 字内，可留空）"></textarea>
+      </label>
+      <div class="field">
+        <span>署名 SIGN AS</span>
+        <div class="radio-row" id="signRow">
+          <label class="radio"><input type="radio" name="sign" value="anon" checked><i></i>匿名观众</label>
+          <label class="radio" id="signNamedLabel" hidden><input type="radio" name="sign" value="named"><i></i><b id="signNamedTxt"></b></label>
+          <a class="radio-hint" href="javascript:void(0)" id="signLoginHint">登录后可用昵称署名</a>
+        </div>
+      </div>
+      <p id="upProgress" class="up-progress" hidden></p>
+      <p class="modal-note">图像将由浏览器压缩后上传至公共云存储；上传即表示你拥有该图像的权利。</p>
+    </div>
+    <div class="modal-foot">
+      <button class="btn btn-ghost" data-close type="button">取消</button>
+      <button id="upSubmit" class="btn btn-solid" type="button" disabled>提交参展 <span class="btn-en">SUBMIT</span></button>
+    </div>
+  </div>
+</div>
+
+<!-- 账号弹窗（邮箱验证码） -->
+<div id="authModal" class="modal" hidden role="dialog" aria-modal="true" aria-label="账号">
+  <div class="modal-card modal-card-sm">
+    <div class="modal-head">
+      <h3 id="authTitle">注册账号 <span class="modal-en">ACCOUNT</span></h3>
+      <button class="modal-x" data-close type="button" aria-label="关闭">✕</button>
+    </div>
+    <div class="modal-body">
+      <div class="seg seg-full" id="authSeg">
+        <button class="seg-btn" data-auth="login" type="button">验证码登录</button>
+        <button class="seg-btn is-on" data-auth="reg" type="button">注册</button>
+      </div>
+      <label class="field">
+        <span>邮箱 <em>EMAIL</em></span>
+        <div class="email-row">
+          <input id="auEmail" type="email" maxlength="254" autocomplete="email" placeholder="you@example.com" spellcheck="false">
+          <button id="auSendCode" class="btn btn-line btn-code" type="button">发送验证码</button>
+        </div>
+      </label>
+      <label class="field" id="auNickField">
+        <span>昵称 <em>USERNAME</em></span>
+        <input id="auUser" type="text" maxlength="20" autocomplete="username" placeholder="2–20 个字符，将作为公开署名">
+      </label>
+      <label class="field" id="auPassField">
+        <span>密码 <em>PASSWORD · 可选</em></span>
+        <input id="auPass" type="password" maxlength="64" autocomplete="new-password" placeholder="≥8 位含字母数字，留空则仅用验证码登录">
+      </label>
+      <label class="field">
+        <span>邮箱验证码 <em>VERIFY CODE</em></span>
+        <input id="auCode" type="text" inputmode="numeric" maxlength="6" autocomplete="one-time-code" placeholder="6 位数字">
+      </label>
+      <p id="auMsg" class="au-msg" hidden></p>
+      <p class="modal-note" id="auNote">验证码将发送至你的邮箱，5 分钟内有效。密码以 PBKDF2 加盐哈希存储。</p>
+    </div>
+    <div class="modal-foot">
+      <button class="btn btn-ghost" data-close type="button">取消</button>
+      <button id="auSubmit" class="btn btn-solid" type="button">创建账号</button>
+    </div>
+  </div>
+</div>
+
+<!-- 人机验证弹窗 -->
+<div id="captchaModal" class="modal" hidden role="dialog" aria-modal="true" aria-label="人机验证">
+  <div class="modal-card modal-card-sm">
+    <div class="modal-head">
+      <h3>人机验证 <span class="modal-en">VERIFY HUMAN</span></h3>
+      <button class="modal-x" id="capClose" type="button" aria-label="关闭">✕</button>
+    </div>
+    <div class="modal-body">
+      <p class="cap-tip">请输入图中字符，以确认你是人类访客</p>
+      <div class="cap-stage">
+        <canvas id="capCanvas" width="260" height="76" aria-label="验证码图片"></canvas>
+        <button id="capRefresh" class="cap-refresh" type="button" title="换一张">⟳</button>
+      </div>
+      <input id="capInput" class="cap-input" type="text" maxlength="4" autocomplete="off" autocapitalize="off" spellcheck="false" placeholder="输入验证码">
+      <p id="capMsg" class="au-msg" hidden></p>
+      <p class="modal-note">验证码用于防止自动化程序滥用，通过后生成一次性凭证。</p>
+    </div>
+    <div class="modal-foot">
+      <button class="btn btn-ghost" id="capCancel" type="button">取消</button>
+      <button id="capOk" class="btn btn-solid" type="button">确认</button>
+    </div>
+  </div>
+</div>
+
+<!-- 安全设置弹窗 -->
+<div id="mailModal" class="modal" hidden role="dialog" aria-modal="true" aria-label="安全设置">
+  <div class="modal-card modal-card-sm">
+    <div class="modal-head">
+      <h3>安全设置 <span class="modal-en">SECURITY</span></h3>
+      <button class="modal-x" data-close type="button" aria-label="关闭">✕</button>
+    </div>
+    <div class="modal-body">
+      <p class="cap-tip">配置邮箱验证码的发送服务</p>
+      <div class="seg seg-full" id="mailProviderSeg">
+        <button class="seg-btn" data-provider="emailjs" type="button">EmailJS</button>
+        <button class="seg-btn" data-provider="formsubmit" type="button">FormSubmit</button>
+      </div>
+      <div id="mailEmailjs" class="mail-block">
+        <label class="field">
+          <span>Service ID</span>
+          <input id="mjService" type="text" placeholder="如 service_xxxxxxx">
+        </label>
+        <label class="field">
+          <span>Template ID</span>
+          <input id="mjTemplate" type="text" placeholder="如 template_xxxxxxx">
+        </label>
+        <label class="field">
+          <span>Public Key</span>
+          <input id="mjKey" type="text" placeholder="如 xxxxxxxxxxxxxxxx">
+        </label>
+        <p class="modal-note">EmailJS 免费版每月 200 封。注册：emailjs.com → 添加邮箱服务 → 创建模板（变量：to_email / code / to_name / subject）。</p>
+      </div>
+      <div id="mailFormsubmit" class="mail-block" hidden>
+        <label class="field">
+          <span>收件邮箱 <em>TO EMAIL</em></span>
+          <input id="mjTo" type="email" placeholder="验证码将发送到该邮箱">
+        </label>
+        <p class="modal-note">FormSubmit 免注册：验证码会发送到上述邮箱。首次使用需到该邮箱点击确认激活链接（仅一次）。</p>
+      </div>
+      <p id="mailMsg" class="au-msg" hidden></p>
+    </div>
+    <div class="modal-foot">
+      <button class="btn btn-ghost" data-close type="button">取消</button>
+      <button id="mailTest" class="btn btn-line" type="button">测试发送</button>
+      <button id="mailSave" class="btn btn-solid" type="button">保存配置</button>
+    </div>
+  </div>
+</div>
+
+<div id="toasts" class="toasts" aria-live="polite"></div>
+
+<script src="security.js"></script>
+<script src="mail.js"></script>
+<script src="app.js"></script>
+</body>
+</html>

@@ -1,0 +1,85 @@
+{
+  "v": 1,
+  "exhibition": "野性档案 SAVAGE ARCHIVE",
+  "curator": "24.savage",
+  "arts": [
+    {
+      "id": "seed-001",
+      "no": "001",
+      "title": "雨林霓虹",
+      "en": "NEON RAINFOREST",
+      "desc": "深夜的丛林自体发光，虎在粉雾中独行。",
+      "by": "24.savage",
+      "ts": 1752720000000,
+      "likes": 47,
+      "seed": true,
+      "src": "works/p1.jpg",
+      "thumb": "works/p1_t.jpg"
+    },
+    {
+      "id": "seed-002",
+      "no": "002",
+      "title": "锈色巨人",
+      "en": "THE RUSTED COLOSSUS",
+      "desc": "沙海尽头，沉睡的钢铁巨人等着最后一个旅人。",
+      "by": "24.savage",
+      "ts": 1753065600000,
+      "likes": 35,
+      "seed": true,
+      "src": "works/p2.jpg",
+      "thumb": "works/p2_t.jpg"
+    },
+    {
+      "id": "seed-003",
+      "no": "003",
+      "title": "玻璃迁徙",
+      "en": "GLASS MIGRATION",
+      "desc": "一群玻璃蝴蝶横渡风暴之海，翅膀折射出整个黄昏。",
+      "by": "24.savage",
+      "ts": 1753411200000,
+      "likes": 52,
+      "seed": true,
+      "src": "works/p3.jpg",
+      "thumb": "works/p3_t.jpg"
+    },
+    {
+      "id": "seed-004",
+      "no": "004",
+      "title": "午夜浪人",
+      "en": "MIDNIGHT SURFER",
+      "desc": "荧光浪涌起时，星与海交换了位置。",
+      "by": "24.savage",
+      "ts": 1753756800000,
+      "likes": 29,
+      "seed": true,
+      "src": "works/p4.jpg",
+      "thumb": "works/p4_t.jpg"
+    },
+    {
+      "id": "seed-005",
+      "no": "005",
+      "title": "机械温室",
+      "en": "MECHANICAL GREENHOUSE",
+      "desc": "维多利亚温室里，黄铜植物在蒸汽中进行光合作用。",
+      "by": "24.savage",
+      "ts": 1754102400000,
+      "likes": 41,
+      "seed": true,
+      "src": "works/p5.jpg",
+      "thumb": "works/p5_t.jpg"
+    },
+    {
+      "id": "seed-006",
+      "no": "006",
+      "title": "荒原天文台",
+      "en": "THE VERMILION OBSERVATORY",
+      "desc": "猩红星云之下，提灯的人仍仰望天空。",
+      "by": "24.savage",
+      "ts": 1754448000000,
+      "likes": 58,
+      "seed": true,
+      "src": "works/p6.jpg",
+      "thumb": "works/p6_t.jpg"
+    }
+  ]
+}
