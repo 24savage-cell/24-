@@ -38,6 +38,19 @@ const SEC = {
     return /^(?=.*[A-Za-z])(?=.*\d).{8,64}$/.test(String(p || ''));
   },
 
+  /* 通用 SHA-256 十六进制摘要 */
+  async sha256(text) {
+    const enc = new TextEncoder();
+    const buf = await crypto.subtle.digest('SHA-256', enc.encode(text));
+    return [...new Uint8Array(buf)].map(b => b.toString(16).padStart(2, '0')).join('');
+  },
+
+  /* 邮箱脱敏标识：加常量盐(PEPPER)+小写邮箱，做 SHA-256，杜绝明文邮箱落盘 */
+  async emailKey(email) {
+    const e = String(email || '').trim().toLowerCase();
+    return SEC.sha256('savage::v2::pepper::' + e);
+  },
+
   /* PBKDF2 加盐哈希（比 SHA-256 抗暴力破解强得多） */
   async pbkdf2(password, salt, iterations = 120000) {
     const enc = new TextEncoder();

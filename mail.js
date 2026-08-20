@@ -8,10 +8,10 @@
 const MAIL = {
   LS_KEY: 'sa_mail_config',
 
-  /* 默认配置：未配置时使用 FormSubmit 免注册模式（需在设置中填写收件邮箱） */
+  /* 默认配置：EmailJS 已预置（邮箱验证码发送），可在「安全设置」中修改 */
   defaults: {
-    provider: 'formsubmit',   // 'emailjs' | 'formsubmit'
-    emailjs: { serviceId: '', templateId: '', publicKey: '' },
+    provider: 'emailjs',   // 'emailjs' | 'formsubmit'
+    emailjs: { serviceId: 'service_gt98hmv', templateId: 'template_mb73egj', publicKey: '7cpecHDYhjTPH8MqS' },
     formsubmit: { toEmail: '' }
   },
 

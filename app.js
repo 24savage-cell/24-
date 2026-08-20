@@ -665,16 +665,17 @@ async function handleSendCode() {
   }
 }
 
-/* 按邮箱查找用户（云端优先，本地兜底） */
+/* 按邮箱查找用户（云端优先，本地兜底）。邮箱以哈希形式存储，禁止明文。 */
 async function findUserByEmail(email) {
+  const key = await SEC.emailKey(email);
   if (S.gid && S.mode !== 'local') {
     try {
       const idx = await cloud.get(S.gid);
-      const u = (idx.users || []).find(x => x.em === email);
+      const u = (idx.users || []).find(x => x.em === key);
       if (u) return u;
     } catch { }
   }
-  return loadLocalIndex().users.find(x => x.em === email) || null;
+  return loadLocalIndex().users.find(x => x.em === key) || null;
 }
 
 async function handleAuth() {
@@ -697,7 +698,7 @@ async function handleAuth() {
       const exists = await findUserByEmail(email);
       if (exists) { auMsg('该邮箱已注册，请直接登录'); return; }
 
-      const rec = { em: email, u, ts: Date.now() };
+      const rec = { em: await SEC.emailKey(email), u, ts: Date.now() };
       if (p) {
         const salt = SEC.randToken(16);
         rec.s = salt;
@@ -714,7 +715,7 @@ async function handleAuth() {
             setStatus();
           }
           await mergePutCloud(idx => {
-            if (idx.users.some(x => x.em === email)) throw new Error('该邮箱已注册');
+            if (idx.users.some(x => x.em === rec.em)) throw new Error('该邮箱已注册');
             if (idx.users.some(x => x.u.toLowerCase() === u.toLowerCase())) throw new Error('昵称已被注册');
             idx.users.push(rec);
             return idx;
@@ -726,12 +727,12 @@ async function handleAuth() {
         }
       }
       const li = loadLocalIndex();
-      if (!li.users.some(x => x.em === email)) {
+      if (!li.users.some(x => x.em === rec.em)) {
         li.users.push(rec);
         saveLocalIndex(li);
         S.localIndex = li;
       }
-      S.session = { em: email, n: u };
+      S.session = { e: rec.em, n: u };
       localStorage.setItem(LS.me, JSON.stringify(S.session));
       toast(saved ? '账号已创建，欢迎入馆' : '账号已创建（本机档案）');
     } else {
@@ -751,7 +752,8 @@ async function handleAuth() {
         authed = true;
       }
       if (!authed) { auMsg('请输入验证码或密码'); return; }
-      S.session = { em: email, n: user.u };
+      const ekey = await SEC.emailKey(email);
+      S.session = { e: ekey, n: user.u };
       localStorage.setItem(LS.me, JSON.stringify(S.session));
       toast(`欢迎回来，${user.u}`);
     }
