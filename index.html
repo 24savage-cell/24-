@@ -45,7 +45,7 @@
     <button id="statusChip" class="chip chip-init" type="button" title="云同步状态">● 云端待激活</button>
     <button id="authBtn" class="btn btn-ghost" type="button">注册 / 登录</button>
     <button id="meChip" class="chip chip-me" type="button" hidden></button>
-    <button id="mailBtn" class="btn btn-ghost" type="button" title="安全设置">安全</button>
+    <button id="adminEntry" class="btn btn-ghost" type="button" title="管理后台">管理 <span class="btn-en">ADMIN</span></button>
     <button id="uploadBtn" class="btn btn-solid" type="button">投稿 <span class="btn-en">UPLOAD</span></button>
   </div>
 </header>
@@ -265,55 +265,85 @@
   </div>
 </div>
 
-<!-- 安全设置弹窗 -->
-<div id="mailModal" class="modal" hidden role="dialog" aria-modal="true" aria-label="安全设置">
-  <div class="modal-card modal-card-sm">
+<!-- 管理后台弹窗（仅管理员可见，需登录） -->
+<div id="adminModal" class="modal" hidden role="dialog" aria-modal="true" aria-label="管理后台">
+  <div class="modal-card modal-card-lg">
     <div class="modal-head">
-      <h3>安全设置 <span class="modal-en">SECURITY</span></h3>
+      <h3>管理后台 <span class="modal-en">CURATOR&nbsp;CONSOLE</span></h3>
       <button class="modal-x" data-close type="button" aria-label="关闭">✕</button>
     </div>
-    <div class="modal-body">
-      <p class="cap-tip">配置邮箱验证码的发送服务</p>
-      <div class="seg seg-full" id="mailProviderSeg">
-        <button class="seg-btn" data-provider="emailjs" type="button">EmailJS</button>
-        <button class="seg-btn" data-provider="formsubmit" type="button">FormSubmit</button>
+
+    <!-- 未登录：登录表单 -->
+    <div class="modal-body" id="admLoginView">
+      <p class="cap-tip">仅馆方管理员可进入后台，负责投稿审核与站务管理。</p>
+      <label class="field">
+        <span>管理员邮箱 <em>EMAIL</em></span>
+        <input id="admEmail" type="email" maxlength="254" placeholder="you@example.com" spellcheck="false">
+      </label>
+      <label class="field">
+        <span>密码 <em>PASSWORD</em></span>
+        <input id="admPass" type="password" maxlength="64" autocomplete="current-password" placeholder="管理员密码">
+      </label>
+      <p id="admMsg" class="au-msg" hidden></p>
+    </div>
+
+    <!-- 已登录：后台面板 -->
+    <div class="modal-body" id="admPanelView" hidden>
+      <div class="adm-bar">
+        <span id="admWho">管理员</span>
+        <button id="admLogout" class="btn btn-ghost btn-s" type="button">退出</button>
       </div>
-      <div id="mailEmailjs" class="mail-block">
+      <div class="seg seg-full" id="admSeg">
+        <button class="seg-btn is-on" data-adm="pending" type="button">待审 <span id="admPendingCnt"></span></button>
+        <button class="seg-btn" data-adm="published" type="button">已发布</button>
+        <button class="seg-btn" data-adm="mail" type="button">邮件服务</button>
+      </div>
+
+      <!-- 待审 / 已发布列表 -->
+      <div id="admListWrap" class="adm-list">
+        <p id="admListEmpty" class="au-msg" style="padding:20px 0;text-align:center">—</p>
+      </div>
+
+      <!-- 邮件服务（密钥仅管理员可见） -->
+      <div id="admMailView" class="mail-block" hidden>
+        <p class="cap-tip">邮箱验证码由 EmailJS 发送。以下凭证仅管理员可见。</p>
         <label class="field">
           <span>Service ID</span>
-          <input id="mjService" type="text" placeholder="如 service_xxxxxxx">
+          <input id="mjService" type="text" autocomplete="off">
         </label>
         <label class="field">
           <span>Template ID</span>
-          <input id="mjTemplate" type="text" placeholder="如 template_xxxxxxx">
+          <input id="mjTemplate" type="text" autocomplete="off">
         </label>
         <label class="field">
-          <span>Public Key</span>
-          <input id="mjKey" type="text" placeholder="如 xxxxxxxxxxxxxxxx">
+          <span>Public Key（掩码）</span>
+          <div class="mail-key-row">
+            <input id="mjKey" type="password" autocomplete="off" readonly>
+            <button id="mjReveal" class="btn btn-line btn-s" type="button">显示</button>
+          </div>
         </label>
-        <p class="modal-note">EmailJS 免费版每月 200 封。注册：emailjs.com → 添加邮箱服务 → 创建模板（变量：to_email / code / to_name / subject）。</p>
+        <p class="modal-note">Public Key 采用掩码显示，点击「显示」才可查看完整值。<b>切勿将此密钥外泄或截图传播。</b></p>
+        <p id="mailMsg" class="au-msg" hidden></p>
+        <div class="modal-foot" style="padding-left:0;padding-right:0">
+          <button id="mailTest" class="btn btn-line" type="button">测试发送</button>
+          <button id="mailSave" class="btn btn-solid" type="button">保存配置</button>
+        </div>
       </div>
-      <div id="mailFormsubmit" class="mail-block" hidden>
-        <label class="field">
-          <span>收件邮箱 <em>TO EMAIL</em></span>
-          <input id="mjTo" type="email" placeholder="验证码将发送到该邮箱">
-        </label>
-        <p class="modal-note">FormSubmit 免注册：验证码会发送到上述邮箱。首次使用需到该邮箱点击确认激活链接（仅一次）。</p>
-      </div>
-      <p id="mailMsg" class="au-msg" hidden></p>
     </div>
-    <div class="modal-foot">
-      <button class="btn btn-ghost" data-close type="button">取消</button>
-      <button id="mailTest" class="btn btn-line" type="button">测试发送</button>
-      <button id="mailSave" class="btn btn-solid" type="button">保存配置</button>
+
+    <div class="modal-foot" id="admFooter">
+      <button class="btn btn-ghost" data-close type="button">关闭</button>
+      <button id="admLogin" class="btn btn-solid" type="button">管理员登录</button>
     </div>
   </div>
 </div>
 
 <div id="toasts" class="toasts" aria-live="polite"></div>
 
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
 <script src="security.js"></script>
 <script src="mail.js"></script>
+<script src="supabase.js"></script>
 <script src="app.js"></script>
 </body>
 </html>

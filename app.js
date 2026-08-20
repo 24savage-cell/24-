@@ -1,17 +1,14 @@
 /* ============================================================
    野性档案 SAVAGE ARCHIVE · app.js
-   双模存储：jsonblob 云端索引（跨设备共享）+ 本地 localStorage 兜底
+   云端存储：Supabase（行级权限RLS + 先审后发 + 匿名公开读）
+   馆藏：works.json 内置六件；观众投稿需管理员批准后公开
    ============================================================ */
 'use strict';
 
 /* ---------- 常量 ---------- */
-const BLOB_API = 'https://jsonblob.com/api/jsonBlob';
 const LS = {
-  gid: 'sa_gid', me: 'sa_me', likes: 'sa_likes',
-  lidx: 'sa_local_index', lart: 'sa_local_art_'
+  me: 'sa_me', likes: 'sa_likes'
 };
-const CLOUD_MAX_ARTS = 36;   // 云端索引最多保留的投稿（防止超出单 blob 体积限制）
-const LOCAL_MAX_ARTS = 8;    // 本地模式最多保留的投稿（localStorage 约 5MB）
 const RESERVED_NAMES = ['24.savage', '24savage', 'savage', 'admin', 'curator', 'system', 'anonymous', '匿名观众'];
 
 /* ---------- 工具 ---------- */
@@ -19,7 +16,6 @@ const $ = (s, p = document) => p.querySelector(s);
 const $$ = (s, p = document) => [...p.querySelectorAll(s)];
 const uid = () => Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
 const pad3 = n => String(n).padStart(3, '0');
-const b64bytes = s => Math.floor(s.length * 0.75);
 const fmtTs = ts => {
   const d = new Date(ts);
   return `${d.getFullYear()}.${String(d.getMonth() + 1).padStart(2, '0')}.${String(d.getDate()).padStart(2, '0')}`;
@@ -47,72 +43,20 @@ async function sha256hex(str) {
   }
 })();
 
-/* ---------- 云端 API（jsonblob） ---------- */
-const cloud = {
-  async create(obj) {
-    const r = await withTimeout(fetch(BLOB_API, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
-      body: JSON.stringify(obj)
-    }), 15000);
-    if (!r.ok) throw new Error('cloud create ' + r.status);
-    const loc = r.headers.get('Location') || r.headers.get('X-jsonblob-id') || '';
-    const m = String(loc).match(/(\d{8,})/);
-    if (!m) throw new Error('cloud create: no id');
-    return m[1];
-  },
-  async get(id) {
-    const r = await withTimeout(fetch(`${BLOB_API}/${id}`, {
-      headers: { 'Accept': 'application/json' }, cache: 'no-store'
-    }), 12000);
-    if (r.status === 404) return null;
-    if (!r.ok) throw new Error('cloud get ' + r.status);
-    return r.json();
-  },
-  async put(id, obj) {
-    const r = await withTimeout(fetch(`${BLOB_API}/${id}?t=${Date.now()}`, {
-      method: 'PUT',
-      headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
-      body: JSON.stringify(obj)
-    }), 15000);
-    if (!r.ok) throw new Error('cloud put ' + r.status);
-    return true;
-  }
-};
-
 /* ---------- 状态 ---------- */
 const S = {
-  mode: 'pending',        // 'cloud' | 'local' | 'pending'（尚未创建云端索引）
-  gid: localStorage.getItem(LS.gid) || '',
-  cloudIndex: null,       // {v, seq, arts:[], users:[]}
-  localIndex: null,
+  cloudArts: [],      // 已批准投稿（Supabase）
   seeds: [],
   session: (() => { try { return JSON.parse(localStorage.getItem(LS.me) || 'null'); } catch { return null; } })(),
   sort: 'new',
   filter: 'all',
   lbList: [], lbPos: -1,
-  fullCache: new Map(),   // id -> 原图 dataURL
+  fullCache: new Map(),   // id -> 原图 URL
   pendingFile: null,
-  authMode: 'reg'
-};
-
-const freshIndex = () => ({ v: 1, seq: 6, arts: [], users: [] }); // seq 从 6 起：001–006 为馆藏编号
-const sanitizeIndex = idx => ({
-  v: 1,
-  seq: Number(idx && idx.seq) || 0,
-  arts: Array.isArray(idx && idx.arts) ? idx.arts.filter(a => a && a.id) : [],
-  users: Array.isArray(idx && idx.users) ? idx.users.filter(u => u && u.u) : []
-});
-const loadLocalIndex = () => {
-  try { return sanitizeIndex(JSON.parse(localStorage.getItem(LS.lidx) || 'null')); }
-  catch { return freshIndex(); }
-};
-const saveLocalIndex = idx => {
-  try { localStorage.setItem(LS.lidx, JSON.stringify(idx)); }
-  catch { // 配额不足：裁掉最老的
-    idx.arts = idx.arts.slice(-Math.floor(LOCAL_MAX_ARTS / 2));
-    try { localStorage.setItem(LS.lidx, JSON.stringify(idx)); } catch { }
-  }
+  authMode: 'reg',
+  adminAuthed: false,
+  admView: 'pending',
+  subs: []               // 实时订阅句柄
 };
 
 /* ---------- 初始化 ---------- */
@@ -121,47 +65,14 @@ async function init() {
   bindKeys();
   await loadSeeds();
   renderSession();
-  await initStore();
+  await loadCloud();
   renderAll();
   initTicker();
+  setStatus();
+  subscribeCloud();
   const boot = $('#boot');
   setTimeout(() => boot.classList.add('done'), 1000);
   setTimeout(() => boot.classList.add('done'), 2600); // 兜底
-}
-
-function adoptHash() {
-  const m = location.hash.match(/g=(\d{8,})/);
-  if (m && m[1] && m[1] !== S.gid) {
-    S.gid = m[1];
-    localStorage.setItem(LS.gid, S.gid);
-    toast('已连接到分享的云端展厅');
-  }
-}
-
-async function initStore() {
-  adoptHash();
-  S.localIndex = loadLocalIndex();
-  if (S.gid) {
-    try {
-      const idx = await cloud.get(S.gid);
-      if (idx === null) { // blob 已被删除，重置
-        S.gid = ''; localStorage.removeItem(LS.gid);
-        S.cloudIndex = freshIndex(); S.mode = 'pending';
-      } else {
-        S.cloudIndex = sanitizeIndex(idx);
-        S.mode = 'cloud';
-      }
-    } catch (e) {
-      console.warn('cloud unreachable:', e);
-      S.cloudIndex = freshIndex();
-      S.mode = 'local';
-      toast('云端暂时不可达，展厅以本地模式运行', true, 4200);
-    }
-  } else {
-    S.cloudIndex = freshIndex();
-    S.mode = 'pending';
-  }
-  setStatus();
 }
 
 async function loadSeeds() {
@@ -172,28 +83,46 @@ async function loadSeeds() {
   } catch { S.seeds = []; }
 }
 
+/* 拉取云端已批准投稿 */
+async function loadCloud() {
+  try {
+    const { data, error } = await withTimeout(db.listApproved(), 12000);
+    if (error) throw new Error(error.message);
+    S.cloudArts = (data || []).map(a => ({
+      id: a.id, no: a.no, title: a.title, desc: a.desc, by: a.by,
+      ts: a.ts, likes: Number(a.likes) || 0, w: a.w, h: a.h,
+      thumb: db.pubUrl(a.thumb_key), imgkey: a.img_key
+    }));
+  } catch (e) {
+    console.warn('cloud load failed:', e);
+    S.cloudArts = [];
+    toast('云端暂时不可达，仅展示馆藏', true, 4200);
+  }
+  setStatus();
+}
+
+/* 实时：新批准的作品自动出现 */
+function subscribeCloud() {
+  const ch = db.subscribeApproved(() => { loadCloud().then(renderAll); });
+  S.subs.push(ch);
+}
+
 /* ---------- 状态徽标 ---------- */
 function setStatus() {
-  const chip = $('#statusChip');
-  chip.classList.remove('chip-init', 'chip-ready', 'chip-local');
-  if (S.mode === 'cloud') {
-    chip.classList.add('chip-ready');
-    chip.textContent = '● 云端同步中';
-  } else if (S.mode === 'local') {
-    chip.classList.add('chip-local');
-    chip.textContent = '● 本地模式';
-  } else {
-    chip.classList.add('chip-init');
-    chip.textContent = '● 云端待激活';
-  }
+  chip('.chip-init', '.chip-ready', '.chip-local', '● 云端同步中');
+}
+function chip(...cls) {
+  const el = $('#statusChip');
+  el.classList.remove('chip-init', 'chip-ready', 'chip-local');
+  el.classList.add(cls[2] || cls[1] || 'chip-ready');
+  el.textContent = cls[3] || '● 云端同步中';
 }
 
 /* ---------- 数据合并与渲染 ---------- */
 function currentArts() {
   const map = new Map();
   for (const a of S.seeds) map.set(a.id, { ...a, store: 'seed' });
-  for (const a of (S.cloudIndex ? S.cloudIndex.arts : [])) map.set(a.id, { ...a, store: 'cloud' });
-  for (const a of (S.localIndex ? S.localIndex.arts : [])) if (!map.has(a.id)) map.set(a.id, { ...a, store: 'local' });
+  for (const a of S.cloudArts) map.set(a.id, { ...a, store: 'cloud' });
   return [...map.values()];
 }
 
@@ -228,12 +157,12 @@ function plateEl(a, i, isNew) {
   const el = document.createElement('article');
   el.className = 'plate' + (isNew ? ' is-new' : '');
   el.style.animationDelay = Math.min(i * 55, 440) + 'ms';
-  const thumb = a.seed ? a.thumb : a.thumb;
+  const thumb = a.thumb || '';
   el.innerHTML = `
     <div class="plate-imgwrap">
       <span class="plate-no">Nº ${esc(a.no || pad3(i + 1))}</span>
       ${a.seed ? '<span class="plate-seedtag">馆藏</span>' : '<span class="plate-seedtag plate-seedtag-data">投稿</span>'}
-      <img data-src="${thumb || ''}" alt="${esc(a.title)}" loading="lazy">
+      <img data-src="${esc(thumb)}" alt="${esc(a.title)}" loading="lazy">
     </div>
     <div class="plate-meta">
       <h3 class="plate-title">${esc(a.title)}</h3>
@@ -291,7 +220,7 @@ async function openLb(pos) {
   $('#lbDesc').textContent = a.desc || '（作者未留下自述）';
   $('#lbBy').textContent = a.by || '匿名观众';
   $('#lbTs').textContent = fmtTs(a.ts || Date.now());
-  $('#lbSrc').textContent = a.seed ? '馆藏精选 · CURATED' : (a.store === 'cloud' ? '观众投稿 · 云端档案' : '观众投稿 · 本机档案');
+  $('#lbSrc').textContent = a.seed ? '馆藏精选 · CURATED' : '观众投稿 · 云端档案（审核后公开）';
   updateLbLike(a);
   const lb = $('#lightbox');
   lb.hidden = false;
@@ -301,19 +230,13 @@ async function openLb(pos) {
   img.removeAttribute('src');
   load.hidden = false;
   let src = '';
-  try {
-    if (a.src) src = a.src;
-    else if (a.store === 'local') {
-      const raw = localStorage.getItem(LS.lart + a.id);
-      src = raw ? (JSON.parse(raw).img || '') : '';
-    } else if (S.fullCache.has(a.id)) src = S.fullCache.get(a.id);
-    else if (a.bid) {
-      const blob = await cloud.get(a.bid);
-      src = (blob && blob.img) || '';
-      S.fullCache.set(a.id, src);
-    }
-  } catch { toast('原图加载失败，稍后再试', true); }
-  if (token !== lbToken) return; // 已切到下一件，丢弃过期结果
+  if (a.src) src = a.src;
+  else if (a.seed) src = '';
+  else if (S.fullCache.has(a.id)) src = S.fullCache.get(a.id);
+  else if (a.imgkey) {
+    src = db.pubUrl(a.imgkey);
+    S.fullCache.set(a.id, src);
+  }
   img.onload = () => { load.hidden = true; };
   img.onerror = () => { load.hidden = true; };
   if (src) img.src = src; else { load.hidden = true; }
@@ -335,42 +258,24 @@ async function toggleLike(id) {
   const all = applyLikes(currentArts());
   const a = all.find(x => x.id === id);
   if (!a) return;
-  if (likes[id]) { delete likes[id]; a.likes = Math.max(0, (a.likes || 0) - 1); a.liked = false; }
+  const liked = !!likes[id];
+  // 乐观更新
+  if (liked) { delete likes[id]; a.likes = Math.max(0, (a.likes || 0) - 1); a.liked = false; }
   else { likes[id] = 1; a.likes = (a.likes || 0) + 1; a.liked = true; }
   localStorage.setItem(LS.likes, JSON.stringify(likes));
-
-  // 同步计数到对应存储（失败不影响本机体验）
-  if (!a.seed) {
-    try {
-      if (a.store === 'cloud' && S.mode !== 'local') {
-        await mergePutCloud(idx => {
-          const t = idx.arts.find(x => x.id === id);
-          if (t) t.likes = a.likes;
-          return idx;
-        });
-      } else {
-        const li = loadLocalIndex();
-        const t = li.arts.find(x => x.id === id);
-        if (t) { t.likes = a.likes; saveLocalIndex(li); }
-        S.localIndex = li;
-      }
-    } catch { }
-  }
-  // 更新界面
   renderAll();
   if (!$('#lightbox').hidden) {
     const pos = S.lbList.findIndex(x => x.id === id);
     if (pos >= 0) { S.lbPos = pos; updateLbLike(S.lbList[pos]); }
   }
-}
-
-/* ---------- 云端索引合并写入 ---------- */
-async function mergePutCloud(mutator) {
-  const fresh = sanitizeIndex(await cloud.get(S.gid));
-  const next = mutator(fresh) || fresh;
-  await cloud.put(S.gid, next);
-  S.cloudIndex = sanitizeIndex(next);
-  return next;
+  // 云端计数（仅云端投稿，RPC 受 RLS 保护）
+  if (!a.seed && a.store === 'cloud') {
+    try {
+      const dir = liked ? -1 : 1;
+      localStorage.setItem('sa_likedb_' + id, String(Number(localStorage.getItem('sa_likedb_' + id) || 0) + dir));
+      await db.like(id);
+    } catch { }
+  }
 }
 
 /* ---------- 投稿 ---------- */
@@ -480,70 +385,24 @@ async function handleUpload() {
       ts: Date.now(), likes: 0, w: main.w, h: main.h
     };
 
-    if (S.mode !== 'local') {
-      try {
-        setProgress('正在连接云端展厅…');
-        if (!S.gid) {
-          S.gid = await cloud.create(freshIndex());
-          localStorage.setItem(LS.gid, S.gid);
-          S.cloudIndex = freshIndex();
-          S.mode = 'cloud';
-          history.replaceState(null, '', '#g=' + S.gid);
-          setStatus();
-          setTimeout(() => toast('云端展厅已激活！点右上角状态点可复制分享链接', false, 5200), 800);
-        }
-        setProgress('正在上传作品…');
-        const bid = await cloud.create({ id: art.id, ...art, img });
-        setProgress('正在更新展厅索引…');
-        await mergePutCloud(idx => {
-          idx.seq = (idx.seq || 0) + 1;
-          idx.arts.push({ id: art.id, bid, no: pad3(idx.seq), title: art.title, desc: art.desc, by: art.by, ts: art.ts, likes: 0, thumb });
-          if (idx.arts.length > CLOUD_MAX_ARTS) idx.arts = idx.arts.slice(-CLOUD_MAX_ARTS);
-          return idx;
-        });
-        setProgress(null);
-        toast('作品已入馆，全球可见');
-      } catch (e) {
-        console.warn('cloud upload failed:', e);
-        setProgress(null);
-        toast('云端不可达，作品已存入本机展厅（仅本机可见）', true, 4600);
-        localAdd(art, thumb, img);
-        S.mode = 'local';
-        setStatus();
-      }
-    } else {
-      setProgress('正在保存到本机…');
-      localAdd(art, thumb, img);
-      setProgress(null);
-      toast('作品已存入本机展厅');
-    }
+    setProgress('正在上传至云端（待审核）…');
+    await db.submit(art, { imgData: img, thumbData: thumb });
+    setProgress(null);
+    toast('投稿已提交，待策展人审核后公开展出', false, 4800);
     closeUpload();
     resetUploadUI();
-    renderAll(art.id);
     $('#gallery').scrollIntoView({ behavior: 'smooth' });
   } catch (e) {
     console.warn(e);
     setProgress(null);
-    toast(String(e && e.message || '').includes('超限') ? '这张图过于复杂，换一张试试' : '上传失败，请重试', true);
+    toast(String(e && e.message || '').includes('超限') ? '这张图过于复杂，换一张试试' : '上传失败：' + (e.message || '请重试'), true, 5000);
   } finally {
     btn.disabled = false;
   }
 }
 
-function localAdd(art, thumb, img) {
-  const li = loadLocalIndex();
-  li.seq = (li.seq || 0) + 1;
-  li.arts.push({ ...art, no: pad3(li.seq), thumb });
-  if (li.arts.length > LOCAL_MAX_ARTS) {
-    for (const dropped of li.arts.slice(0, li.arts.length - LOCAL_MAX_ARTS)) {
-      try { localStorage.removeItem(LS.lart + dropped.id); } catch { }
-    }
-    li.arts = li.arts.slice(-LOCAL_MAX_ARTS);
-  }
-  saveLocalIndex(li);
-  try { localStorage.setItem(LS.lart + art.id, JSON.stringify({ id: art.id, img })); }
-  catch { toast('本机空间不足，已只保留缩略图', true); }
-  S.localIndex = li;
+function b64bytes(s) {
+  return Math.floor(String(s).length * 0.75);
 }
 
 /* ---------- 账号（邮箱验证码） ---------- */
@@ -609,7 +468,7 @@ function clearCodeTimer() {
 let _capHandlers = null;
 function requireCaptcha(purpose) {
   return new Promise(resolve => {
-    if (_capHandlers) { // 清理上一次残留的监听器
+    if (_capHandlers) {
       const { ok, cancel } = _capHandlers;
       $('#capOk').removeEventListener('click', ok);
       $('#capCancel').removeEventListener('click', cancel);
@@ -620,7 +479,6 @@ function requireCaptcha(purpose) {
     const okHandler = () => {
       const token = CAPTCHA.verify();
       if (token) { cleanup(); resolve(token); }
-      // token 为 null 时保持弹窗继续尝试
     };
     const cancelHandler = () => { cleanup(); resolve(null); };
     const cleanup = () => {
@@ -645,8 +503,7 @@ async function handleSendCode() {
   const token = await requireCaptcha('sendcode');
   if (!token) return;
   if (!MAIL.ready()) {
-    auMsg('邮件服务未配置：请先到「安全」面板配置');
-    openMail();
+    auMsg('邮件服务未配置，请联系馆方');
     return;
   }
   const btn = $('#auSendCode');
@@ -665,17 +522,18 @@ async function handleSendCode() {
   }
 }
 
-/* 按邮箱查找用户（云端优先，本地兜底）。邮箱以哈希形式存储，禁止明文。 */
+/* 按邮箱查找用户（邮箱以哈希形式存储，禁止明文） */
 async function findUserByEmail(email) {
   const key = await SEC.emailKey(email);
-  if (S.gid && S.mode !== 'local') {
-    try {
-      const idx = await cloud.get(S.gid);
-      const u = (idx.users || []).find(x => x.em === key);
-      if (u) return u;
-    } catch { }
-  }
-  return loadLocalIndex().users.find(x => x.em === key) || null;
+  return loadLocalUsers().find(x => x.em === key) || null;
+}
+
+function loadLocalUsers() {
+  try { return JSON.parse(localStorage.getItem('sa_users') || '[]'); }
+  catch { return []; }
+}
+function saveLocalUsers(users) {
+  try { localStorage.setItem('sa_users', JSON.stringify(users)); } catch { }
 }
 
 async function handleAuth() {
@@ -704,37 +562,14 @@ async function handleAuth() {
         rec.s = salt;
         rec.h = await SEC.pbkdf2(p, salt);
       }
-      let saved = false;
-      if (S.mode !== 'local') {
-        try {
-          if (!S.gid) {
-            S.gid = await cloud.create(freshIndex());
-            localStorage.setItem(LS.gid, S.gid);
-            S.cloudIndex = freshIndex();
-            history.replaceState(null, '', '#g=' + S.gid);
-            setStatus();
-          }
-          await mergePutCloud(idx => {
-            if (idx.users.some(x => x.em === rec.em)) throw new Error('该邮箱已注册');
-            if (idx.users.some(x => x.u.toLowerCase() === u.toLowerCase())) throw new Error('昵称已被注册');
-            idx.users.push(rec);
-            return idx;
-          });
-          saved = true;
-        } catch (e) {
-          if (String(e.message).includes('已注册')) throw e;
-          console.warn('reg cloud fail:', e);
-        }
-      }
-      const li = loadLocalIndex();
-      if (!li.users.some(x => x.em === rec.em)) {
-        li.users.push(rec);
-        saveLocalIndex(li);
-        S.localIndex = li;
+      const users = loadLocalUsers();
+      if (!users.some(x => x.em === rec.em)) {
+        users.push(rec);
+        saveLocalUsers(users);
       }
       S.session = { e: rec.em, n: u };
       localStorage.setItem(LS.me, JSON.stringify(S.session));
-      toast(saved ? '账号已创建，欢迎入馆' : '账号已创建（本机档案）');
+      toast('账号已创建，欢迎入馆');
     } else {
       const user = await findUserByEmail(email);
       if (!user) { auMsg('该邮箱未注册，请先注册'); return; }
@@ -766,74 +601,159 @@ async function handleAuth() {
   }
 }
 
-/* ---------- 安全设置 ---------- */
-function openMail() {
-  const cfg = MAIL.load();
-  $('#mjService').value = cfg.emailjs.serviceId;
-  $('#mjTemplate').value = cfg.emailjs.templateId;
-  $('#mjKey').value = cfg.emailjs.publicKey;
-  $('#mjTo').value = cfg.formsubmit.toEmail;
-  syncMailProvider(cfg.provider);
-  $('#mailMsg').hidden = true;
-  $('#mailModal').hidden = false;
+/* ---------- 管理后台 ---------- */
+function openAdmin() {
+  $('#adminModal').hidden = false;
   document.body.style.overflow = 'hidden';
+  refreshAdminView();
 }
-function syncMailProvider(provider) {
-  $$('#mailProviderSeg .seg-btn').forEach(b => b.classList.toggle('is-on', b.dataset.provider === provider));
-  $('#mailEmailjs').hidden = provider !== 'emailjs';
-  $('#mailFormsubmit').hidden = provider !== 'formsubmit';
+function closeAdmin() {
+  $('#adminModal').hidden = true;
+  document.body.style.overflow = '';
 }
-const mailMsg = (t, isErr) => { const el = $('#mailMsg'); el.textContent = t; el.style.color = isErr ? 'var(--verm)' : 'var(--bone-dim)'; el.hidden = false; };
-function collectMailCfg() {
-  const provider = $('#mailProviderSeg .seg-btn.is-on').dataset.provider;
-  return {
-    provider,
-    emailjs: { serviceId: $('#mjService').value.trim(), templateId: $('#mjTemplate').value.trim(), publicKey: $('#mjKey').value.trim() },
-    formsubmit: { toEmail: $('#mjTo').value.trim().toLowerCase() }
-  };
-}
-function handleMailSave() {
-  const cfg = collectMailCfg();
-  if (cfg.provider === 'emailjs') {
-    if (!(cfg.emailjs.serviceId && cfg.emailjs.templateId && cfg.emailjs.publicKey)) { mailMsg('请完整填写 EmailJS 三项配置', true); return; }
+async function refreshAdminView() {
+  const { data } = await db.adminSession();
+  const authed = !!(data && data.session);
+  S.adminAuthed = authed;
+  $('#admLoginView').hidden = authed;
+  $('#admPanelView').hidden = !authed;
+  $('#admFooter').hidden = false;
+  if (authed) {
+    const em = data.session.user.email || '管理员';
+    $('#admWho').textContent = em.replace(/@.*$/, '') + ' · 已登录';
+    // 待审计数
+    try {
+      const { count } = await db.client().from('art').select('id', { count: 'exact', head: true }).eq('status', 'pending');
+      $('#admPendingCnt').textContent = count ? ' ' + count : '';
+    } catch { $('#admPendingCnt').textContent = ''; }
+    switchView(S.admView);
   } else {
-    if (!SEC.emailValid(cfg.formsubmit.toEmail)) { mailMsg('请输入有效的收件邮箱', true); return; }
+    $('#admEmail').value = S.session && !S.session.e ? '' : '';
+    $('#admPass').value = '';
+    $('#admMsg').hidden = true;
   }
-  MAIL.save(cfg);
-  mailMsg('配置已保存');
-  toast('邮件服务配置已保存');
 }
-async function handleMailTest() {
-  const cfg = collectMailCfg();
-  const email = cfg.provider === 'emailjs' ? 'test@example.com' : cfg.formsubmit.toEmail;
-  if (cfg.provider === 'emailjs') {
-    if (!(cfg.emailjs.serviceId && cfg.emailjs.templateId && cfg.emailjs.publicKey)) { mailMsg('请先完整填写 EmailJS 配置', true); return; }
-  } else if (!SEC.emailValid(email)) { mailMsg('请先填写有效的收件邮箱', true); return; }
-  mailMsg('正在发送测试邮件…');
+function switchView(v) {
+  S.admView = v;
+  $$('#admSeg .seg-btn').forEach(b => b.classList.toggle('is-on', b.dataset.adm === v));
+  $('#admMailView').hidden = v !== 'mail';
+  $('#admListWrap').hidden = v === 'mail';
+  if (v === 'mail') { openAdmMail(); return; }
+  renderAdmList(v);
+}
+async function renderAdmList(v) {
+  const wrap = $('#admListWrap');
+  wrap.innerHTML = '<p class="au-msg" style="padding:20px 0;text-align:center">加载中…</p>';
+  let rows = [];
   try {
-    await MAIL.sendCode(email, '123456');
-    mailMsg('测试邮件已发送，请查收');
+    const q = v === 'pending' ? db.listPending() : db.listAll();
+    const { data, error } = await q;
+    if (error) throw error;
+    rows = data || [];
   } catch (e) {
-    console.warn(e);
-    mailMsg('测试发送失败：' + (e.message || '请检查配置'), true);
+    wrap.innerHTML = '<p class="au-msg" style="color:var(--verm)">读取失败：' + esc(e.message) + '</p>';
+    return;
   }
+  if (v === 'published') rows = rows.filter(r => r.status === 'approved');
+  if (v === 'pending') rows = rows.filter(r => r.status === 'pending');
+  if (!rows.length) {
+    wrap.innerHTML = '<p class="au-msg" style="padding:20px 0;text-align:center">' + (v === 'pending' ? '暂无待审投稿' : '暂无已发布作品') + '</p>';
+    return;
+  }
+  wrap.innerHTML = '';
+  rows.forEach(r => {
+    const el = document.createElement('div');
+    el.className = 'adm-item';
+    el.innerHTML = `
+      <img class="adm-thumb" src="${esc(db.pubUrl(r.thumb_key) || r.thumb || '')}" alt="" onerror="this.style.visibility='hidden'">
+      <div class="adm-meta">
+        <strong>${esc(r.title)}</strong>
+        <span class="adm-sub">by ${esc(r.by)} · ${fmtTs(r.ts)}${r.no ? ' · Nº ' + esc(r.no) : ''}</span>
+        <span class="adm-desc">${esc(r.desc || '')}</span>
+      </div>
+      <div class="adm-actions">
+        ${r.status !== 'approved' ? `<button class="btn btn-solid btn-s" data-adm-approve="${esc(r.id)}">批准</button>` : `<button class="btn btn-line btn-s" data-adm-reject="${esc(r.id)}">下架</button>`}
+        <button class="btn btn-ghost btn-s danger" data-adm-del="${esc(r.id)}">删除</button>
+      </div>`;
+    wrap.appendChild(el);
+  });
+
+  wrap.querySelectorAll('[data-adm-approve]').forEach(b => b.addEventListener('click', () => doApprove(b.dataset.admApprove)));
+  wrap.querySelectorAll('[data-adm-reject]').forEach(b => b.addEventListener('click', () => doReject(b.dataset.admReject)));
+  wrap.querySelectorAll('[data-adm-del]').forEach(b => b.addEventListener('click', () => doDelete(b.dataset.admDel)));
+}
+
+async function doApprove(id) {
+  const row = (await db.listAll()).data.find(x => x.id === id);
+  if (!row) return;
+  const no = pad3(row.no ? Number(String(row.no).replace(/\D/g, '')) : await nextNo());
+  const { error } = await db.adminUpdate(id, { status: 'approved', no });
+  if (error) { toast('批准失败：' + error.message, true); return; }
+  toast('已批准，作品公开展出');
+  refreshAdminView(); loadCloud().then(renderAll);
+}
+async function doReject(id) {
+  if (!confirm('下架后作品将不再公开，可再次在待审中批准。继续？')) return;
+  const { error } = await db.adminUpdate(id, { status: 'pending', no: null });
+  if (error) { toast('下架失败：' + error.message, true); return; }
+  toast('已下架');
+  refreshAdminView(); loadCloud().then(renderAll);
+}
+async function doDelete(id) {
+  if (!confirm('确认永久删除该作品及其图片？此操作不可恢复。')) return;
+  const rows = (await db.listAll()).data || [];
+  const r = rows.find(x => x.id === id);
+  try {
+    await db.adminRemove(id, { img_key: r && r.img_key, thumb_key: r && r.thumb_key });
+    toast('已永久删除');
+    refreshAdminView(); loadCloud().then(renderAll);
+  } catch (e) { toast('删除失败：' + e.message, true); }
+}
+async function nextNo() {
+  const { data } = await db.client().from('art').select('no').neq('no', null);
+  const nums = (data || []).map(x => Number(String(x.no).replace(/\D/g, '')) || 0);
+  return (Math.max(0, ...nums) + 1);
+}
+
+/* 邮件服务（仅管理员面板） */
+function openAdmMail() {
+  const cfg = MAIL.load();
+  $('#mjService').value = cfg.emailjs.serviceId || '';
+  $('#mjTemplate').value = cfg.emailjs.templateId || '';
+  $('#mjKey').value = cfg.emailjs.publicKey || '';
+  $('#mailMsg').hidden = true;
+}
+function handleAdmLogin() {
+  const email = $('#admEmail').value.trim().toLowerCase();
+  const pass = $('#admPass').value;
+  if (!email || !pass) { $('#admMsg').textContent = '请输入邮箱和密码'; $('#admMsg').hidden = false; return; }
+  db.adminLogin(email, pass)
+    .then(() => {
+      $('#admMsg').hidden = true;
+      toast('已登录管理后台');
+      refreshAdminView();
+    })
+    .catch(e => { $('#admMsg').textContent = '登录失败：' + (e.message || '请检查凭证'); $('#admMsg').hidden = false; });
+}
+async function handleAdmLogout() {
+  await db.adminLogout();
+  S.adminAuthed = false;
+  toast('已退出后台');
+  refreshAdminView();
 }
 
 /* ---------- 分享 ---------- */
 function shareLink() {
-  const base = location.origin + location.pathname;
-  if (!S.gid) { toast('云端展厅还未激活：上传第一件作品后即可分享', true, 4200); return; }
-  const url = base + '#g=' + S.gid;
-  copyText(url);
+  copyText(location.origin + location.pathname);
 }
 async function copyText(t) {
   try {
     await navigator.clipboard.writeText(t);
-    toast('链接已复制：' + (t.length > 42 ? t.slice(0, 42) + '…' : t), false, 4200);
+    toast('链接已复制');
   } catch {
     const ta = document.createElement('textarea');
     ta.value = t; document.body.appendChild(ta); ta.select();
-    try { document.execCommand('copy'); toast('链接已复制'); } catch { toast('复制失败，请手动复制：' + t, true, 6000); }
+    try { document.execCommand('copy'); toast('链接已复制'); } catch { toast('复制失败', true); }
     ta.remove();
   }
 }
@@ -850,6 +770,13 @@ function bindUI() {
       S.session = null; localStorage.removeItem(LS.me); renderSession(); toast('已退出登录');
     }
   });
+
+  // 管理后台
+  $('#adminEntry').addEventListener('click', openAdmin);
+  $('#admLogin').addEventListener('click', handleAdmLogin);
+  $('#admPass').addEventListener('keydown', e => { if (e.key === 'Enter') handleAdmLogin(); });
+  $('#admLogout').addEventListener('click', handleAdmLogout);
+  $$('#admSeg .seg-btn').forEach(b => b.addEventListener('click', () => switchView(b.dataset.adm)));
 
   // 账号（邮箱验证码）
   $('#auSendCode').addEventListener('click', handleSendCode);
@@ -868,11 +795,14 @@ function bindUI() {
   $('#capClose').addEventListener('click', CAPTCHA.close);
   document.addEventListener('mousemove', () => CAPTCHA.trackMove());
 
-  // 安全设置
-  $('#mailBtn').addEventListener('click', openMail);
-  $$('#mailProviderSeg .seg-btn').forEach(b => b.addEventListener('click', () => syncMailProvider(b.dataset.provider)));
+  // 邮件服务保存/测试（仅后台）
   $('#mailSave').addEventListener('click', handleMailSave);
   $('#mailTest').addEventListener('click', handleMailTest);
+  $('#mjReveal').addEventListener('click', () => {
+    const inp = $('#mjKey');
+    inp.type = inp.type === 'password' ? 'text' : 'password';
+    $('#mjReveal').textContent = inp.type === 'password' ? '显示' : '隐藏';
+  });
 
   // 投稿弹窗
   const dz = $('#dropzone'), fi = $('#fileInput');
@@ -915,13 +845,43 @@ function bindUI() {
   $('#lbLike').addEventListener('click', () => { const a = S.lbList[S.lbPos]; if (a) toggleLike(a.id); });
   $('#lightbox').addEventListener('click', e => { if (e.target.id === 'lightbox') closeLb(); });
 
-  // 状态 / 分享
-  $('#statusChip').addEventListener('click', () => {
-    if (S.mode === 'cloud') shareLink();
-    else if (S.mode === 'local') toast('云端不可达：作品暂存在本机浏览器，换网络环境可恢复', false, 4200);
-    else toast('首次投稿或注册时会自动创建云端展厅', false, 4200);
-  });
+  // 分享
+  $('#statusChip').addEventListener('click', () => { if (S.cloudArts.length >= 0) shareLink(); });
   $('#shareBtn').addEventListener('click', shareLink);
+}
+
+/* 邮件服务设置处理（拼装/校验/保存与测试，凭证已在后台页） */
+function collectMailCfg() {
+  const cfg = MAIL.load();
+  cfg.emailjs.serviceId = $('#mjService').value.trim();
+  cfg.emailjs.templateId = $('#mjTemplate').value.trim();
+  cfg.emailjs.publicKey = $('#mjKey').value.trim();
+  return cfg;
+}
+function handleMailSave() {
+  const cfg = collectMailCfg();
+  if (!(cfg.emailjs.serviceId && cfg.emailjs.templateId && cfg.emailjs.publicKey)) { mailMsg('请完整填写 EmailJS 三项配置', true); return; }
+  MAIL.save(cfg);
+  mailMsg('配置已保存');
+  toast('邮件服务配置已保存');
+}
+async function handleMailTest() {
+  const cfg = collectMailCfg();
+  if (!(cfg.emailjs.serviceId && cfg.emailjs.templateId && cfg.emailjs.publicKey)) { mailMsg('请先完整填写 EmailJS 配置', true); return; }
+  mailMsg('正在发送测试邮件…');
+  try {
+    await MAIL.sendCode(cfg.formsubmit.toEmail || 'test@example.com', '123456');
+    mailMsg('测试邮件已发送，请查收');
+  } catch (e) {
+    console.warn(e);
+    mailMsg('测试发送失败：' + (e.message || '请检查配置'), true);
+  }
+}
+function mailMsg(t, isErr) {
+  const el = $('#mailMsg');
+  el.textContent = t;
+  el.style.color = isErr ? 'var(--verm)' : 'var(--bone-dim)';
+  el.hidden = false;
 }
 
 function bindKeys() {
