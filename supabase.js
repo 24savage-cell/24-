@@ -112,9 +112,14 @@ const db = {
   async isAdmin() {
     const { data } = await db.adminSession();
     if (!data.session) return false;
-    // 校验该 uid 是否在 admin_users（该查询由 RLS 限定：非管理员读不到）
-    const { data: rows } = await db.client().from('art').select('id').limit(0).then(() => ({ data: [] }));
-    return true; // 登录成功即视为管理员候选，最终由 RLS 决定操作权限
+    // 真正校验：该 uid 是否在 admin_users（RLS 策略 admin_read_self 保证只能查到自己的记录）
+    const { data: rows, error } = await db.client()
+      .from('admin_users')
+      .select('uid')
+      .eq('uid', data.session.user.id)
+      .limit(1);
+    if (error) return false;
+    return !!(rows && rows.length);
   },
 
   /* 管理员读取全部（含待审） */
