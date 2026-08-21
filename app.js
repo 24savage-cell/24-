@@ -71,6 +71,13 @@ async function init() {
   initTicker();
   setStatus();
   subscribeCloud();
+  // 访问埋点（不阻塞页面，失败静默）
+  db.trackVisit().then(r => {
+    if (r && r.banned) {
+      try { localStorage.setItem('sa_banned', '1'); } catch (e) {}
+      toast('当前网络地址已被馆方限制访问，部分功能不可用', true, 6000);
+    }
+  });
   const boot = $('#boot');
   setTimeout(() => boot.classList.add('done'), 1000);
   setTimeout(() => boot.classList.add('done'), 2600); // 兜底
@@ -640,8 +647,16 @@ function switchView(v) {
   S.admView = v;
   $$('#admSeg .seg-btn').forEach(b => b.classList.toggle('is-on', b.dataset.adm === v));
   $('#admMailView').hidden = v !== 'mail';
-  $('#admListWrap').hidden = v === 'mail';
+  $('#admListWrap').hidden = !(v === 'pending' || v === 'published');
+  $('#admStatsView').hidden = v !== 'stats';
+  $('#admLogsView').hidden = v !== 'logs';
+  $('#admBansView').hidden = v !== 'bans';
+  $('#admUsersView').hidden = v !== 'users';
   if (v === 'mail') { openAdmMail(); return; }
+  if (v === 'stats') { renderStats(); return; }
+  if (v === 'logs') { renderLogs(); return; }
+  if (v === 'bans') { renderBans(); return; }
+  if (v === 'users') { renderUsers(); return; }
   renderAdmList(v);
 }
 async function renderAdmList(v) {
@@ -692,13 +707,16 @@ async function doApprove(id) {
   const no = pad3(row.no ? Number(String(row.no).replace(/\D/g, '')) : await nextNo());
   const { error } = await db.adminUpdate(id, { status: 'approved', no });
   if (error) { toast('批准失败：' + error.message, true); return; }
+  db.logAction('approve', `批准作品 ${row.title}（${id}）`);
   toast('已批准，作品公开展出');
   refreshAdminView(); loadCloud().then(renderAll);
 }
 async function doReject(id) {
   if (!confirm('下架后作品将不再公开，可再次在待审中批准。继续？')) return;
+  const row = (await db.listAll()).data.find(x => x.id === id);
   const { error } = await db.adminUpdate(id, { status: 'pending', no: null });
   if (error) { toast('下架失败：' + error.message, true); return; }
+  db.logAction('reject', `下架作品 ${row ? row.title : id}`);
   toast('已下架');
   refreshAdminView(); loadCloud().then(renderAll);
 }
@@ -708,6 +726,7 @@ async function doDelete(id) {
   const r = rows.find(x => x.id === id);
   try {
     await db.adminRemove(id, { img_key: r && r.img_key, thumb_key: r && r.thumb_key });
+    db.logAction('delete', `删除作品 ${r ? r.title : id}`);
     toast('已永久删除');
     refreshAdminView(); loadCloud().then(renderAll);
   } catch (e) { toast('删除失败：' + e.message, true); }
@@ -733,6 +752,7 @@ function handleAdmLogin() {
   db.adminLogin(email, pass)
     .then(() => {
       $('#admMsg').hidden = true;
+      db.logAction('admin_login', '管理员登录后台');
       toast('已登录管理后台');
       refreshAdminView();
     })
@@ -743,6 +763,171 @@ async function handleAdmLogout() {
   S.adminAuthed = false;
   toast('已退出后台');
   refreshAdminView();
+}
+
+/* ---------- 管理后台 2.0 · 访客 / 日志 / 封禁 / 用户 ---------- */
+function fmtDT(ts) {
+  if (!ts) return '—';
+  const d = new Date(ts);
+  const p = n => String(n).padStart(2, '0');
+  return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())} ${p(d.getHours())}:${p(d.getMinutes())}:${p(d.getSeconds())}`;
+}
+function devName(ua) {
+  if (!ua) return '未知设备';
+  if (/iPhone|iPad/.test(ua)) return 'iPhone/iPad';
+  if (/Android/.test(ua)) return 'Android';
+  if (/Windows/.test(ua)) return 'Windows';
+  if (/Macintosh/.test(ua)) return 'Mac';
+  if (/Linux/.test(ua)) return 'Linux';
+  return (ua.match(/^[^/]+/) || ['未知设备'])[0];
+}
+
+/* 访客统计 */
+async function renderStats() {
+  const cards = $('#mgrStatCards'), list = $('#mgrVisitList');
+  cards.innerHTML = '<p class="au-msg" style="padding:16px 0">加载中…</p>';
+  try {
+    const st = await db.mgrStats();
+    if (!st) throw new Error('无数据');
+    const mk = (label, val) => `<div class="mgr-card"><strong>${esc(String(val))}</strong><span>${esc(label)}</span></div>`;
+    cards.innerHTML =
+      mk('今日访问', st.today) + mk('今日独立访客', st.today_uniq) +
+      mk('昨日访问', st.yesterday) + mk('累计访问', st.total) + mk('在线峰值', st.online_peak);
+    const vs = await db.mgrVisits(30);
+    if (!vs.length) { list.innerHTML = '<p class="au-msg" style="padding:16px 0;text-align:center">暂无访问记录</p>'; return; }
+    list.innerHTML = '';
+    vs.forEach(v => {
+      const el = document.createElement('div');
+      el.className = 'adm-item';
+      el.innerHTML = `
+        <div class="adm-meta">
+          <strong>${esc(v.ip || 'IP 未知')} <span class="btn-en">${esc(devName(v.ua))}</span></strong>
+          <span class="adm-sub">${fmtDT(v.ts)} · ${esc(v.path || '/')}</span>
+          <span class="adm-desc">${esc(v.ua || '')}</span>
+        </div>`;
+      list.appendChild(el);
+    });
+  } catch (e) {
+    cards.innerHTML = '<p class="au-msg" style="color:var(--verm)">读取失败：' + esc(e.message) + '</p>';
+  }
+}
+
+/* 操作日志 */
+async function renderLogs() {
+  const list = $('#mgrLogList');
+  list.innerHTML = '<p class="au-msg" style="padding:16px 0;text-align:center">加载中…</p>';
+  try {
+    const rows = await db.mgrAudit(50);
+    if (!rows.length) { list.innerHTML = '<p class="au-msg" style="padding:16px 0;text-align:center">暂无操作记录</p>'; return; }
+    list.innerHTML = '';
+    rows.forEach(r => {
+      const el = document.createElement('div');
+      el.className = 'adm-item';
+      el.innerHTML = `
+        <div class="adm-meta">
+          <strong>${esc(r.action)} <span class="btn-en">${esc(r.actor_email || '?')}</span></strong>
+          <span class="adm-sub">${fmtDT(r.ts)}</span>
+          <span class="adm-desc">${esc(r.detail || '')}</span>
+        </div>`;
+      list.appendChild(el);
+    });
+  } catch (e) {
+    list.innerHTML = '<p class="au-msg" style="color:var(--verm)">读取失败：' + esc(e.message) + '</p>';
+  }
+}
+
+/* 封禁管理 */
+async function renderBans() {
+  const list = $('#mgrBanList');
+  list.innerHTML = '<p class="au-msg" style="padding:16px 0;text-align:center">加载中…</p>';
+  try {
+    const rows = await db.mgrBans();
+    if (!rows.length) { list.innerHTML = '<p class="au-msg" style="padding:16px 0;text-align:center">暂无封禁</p>'; return; }
+    list.innerHTML = '';
+    rows.forEach(r => {
+      const el = document.createElement('div');
+      el.className = 'adm-item';
+      const exp = r.expires_at ? fmtDT(r.expires_at) : '永久';
+      el.innerHTML = `
+        <div class="adm-meta">
+          <strong>${esc(r.btype.toUpperCase())} · ${esc(r.value)}${r.active ? '' : ' <span class="btn-en">已解除</span>'}</strong>
+          <span class="adm-sub">${esc(r.reason || '无原因')} · 创建 ${fmtDT(r.created_at)} · 到期 ${esc(exp)}</span>
+        </div>
+        ${r.active ? `<div class="adm-actions"><button class="btn btn-ghost btn-s danger" data-ban-del="${r.id}">解除</button></div>` : ''}`;
+      list.appendChild(el);
+    });
+    list.querySelectorAll('[data-ban-del]').forEach(b => b.addEventListener('click', async () => {
+      if (!confirm('解除该封禁？')) return;
+      try {
+        await db.mgrBanRemove(Number(b.dataset.banDel));
+        db.logAction('ban_remove', `解除封禁 #${b.dataset.banDel}`);
+        toast('已解除'); renderBans();
+      } catch (e) { toast('操作失败：' + e.message, true); }
+    }));
+  } catch (e) {
+    list.innerHTML = '<p class="au-msg" style="color:var(--verm)">读取失败：' + esc(e.message) + '</p>';
+  }
+}
+async function submitBan() {
+  const type = $('#mgrBanType').value;
+  const value = $('#mgrBanValue').value.trim();
+  const reason = $('#mgrBanReason').value.trim();
+  const expMs = $('#mgrBanExpire').value;
+  const msg = $('#mgrBanMsg');
+  if (!value) { msg.textContent = '请填写要封禁的值'; msg.hidden = false; return; }
+  try {
+    const id = await db.mgrBanAdd(type, value, reason || null, expMs ? Date.now() + Number(expMs) : null);
+    db.logAction('ban_add', `封禁 ${type}: ${value}（${reason || '无原因'}）`);
+    msg.hidden = true;
+    $('#mgrBanValue').value = ''; $('#mgrBanReason').value = '';
+    toast('封禁已生效'); renderBans();
+  } catch (e) {
+    msg.textContent = '封禁失败：' + e.message; msg.hidden = false;
+  }
+}
+
+/* 用户管理 */
+async function renderUsers() {
+  const list = $('#mgrUserList');
+  list.innerHTML = '<p class="au-msg" style="padding:16px 0;text-align:center">加载中…</p>';
+  try {
+    const rows = await db.mgrUsers();
+    if (!rows.length) { list.innerHTML = '<p class="au-msg" style="padding:16px 0;text-align:center">暂无用户</p>'; return; }
+    list.innerHTML = '';
+    rows.forEach(u => {
+      const el = document.createElement('div');
+      el.className = 'adm-item';
+      const banned = !!u.banned_until;
+      el.innerHTML = `
+        <div class="adm-meta">
+          <strong>${esc(u.email || '?')}${banned ? ' <span class="btn-en">已封禁</span>' : ''}</strong>
+          <span class="adm-sub">注册 ${fmtDT(new Date(u.created_at).getTime())} · 最后登录 ${fmtDT(u.last_sign_in_at ? new Date(u.last_sign_in_at).getTime() : 0)}</span>
+        </div>
+        <div class="adm-actions">
+          ${banned
+            ? `<button class="btn btn-line btn-s" data-user-unban="${esc(u.email)}">解封</button>`
+            : `<button class="btn btn-ghost btn-s danger" data-user-ban="${esc(u.email)}">封禁</button>`}
+        </div>`;
+      list.appendChild(el);
+    });
+    list.querySelectorAll('[data-user-ban]').forEach(b => b.addEventListener('click', async () => {
+      if (!confirm(`永久封禁 ${b.dataset.userBan}？该用户将无法登录。`)) return;
+      try {
+        await db.mgrUserBan(b.dataset.userBan, null);
+        db.logAction('user_ban', `封禁用户 ${b.dataset.userBan}`);
+        toast('已封禁'); renderUsers();
+      } catch (e) { toast('操作失败：' + e.message, true); }
+    }));
+    list.querySelectorAll('[data-user-unban]').forEach(b => b.addEventListener('click', async () => {
+      try {
+        await db.mgrUserUnban(b.dataset.userUnban);
+        db.logAction('user_unban', `解封用户 ${b.dataset.userUnban}`);
+        toast('已解封'); renderUsers();
+      } catch (e) { toast('操作失败：' + e.message, true); }
+    }));
+  } catch (e) {
+    list.innerHTML = '<p class="au-msg" style="color:var(--verm)">读取失败：' + esc(e.message) + '</p>';
+  }
 }
 
 /* ---------- 分享 ---------- */
@@ -796,6 +981,7 @@ function bindUI() {
   $('#admPass').addEventListener('keydown', e => { if (e.key === 'Enter') handleAdmLogin(); });
   $('#admLogout').addEventListener('click', handleAdmLogout);
   $$('#admSeg .seg-btn').forEach(b => b.addEventListener('click', () => switchView(b.dataset.adm)));
+  $('#mgrBanAdd').addEventListener('click', submitBan);
 
   // 账号（邮箱验证码）
   $('#auSendCode').addEventListener('click', handleSendCode);
