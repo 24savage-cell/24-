@@ -51,6 +51,8 @@ const MAIL = {
       await new Promise((res, rej) => {
         const s = document.createElement('script');
         s.src = 'https://cdn.jsdelivr.net/npm/@emailjs/browser@4/dist/email.min.js';
+        s.integrity = 'sha384-SALc35EccAf6RzGw4iNsyj7kTPr33K7RoGzYu+7heZhT8s0GZouafRiCg1qy44AS';
+        s.crossOrigin = 'anonymous';
         s.onload = res; s.onerror = () => rej(new Error('EmailJS SDK 加载失败'));
         document.head.appendChild(s);
       });
