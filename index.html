@@ -18,6 +18,26 @@
 <link rel="stylesheet" href="style.css">
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/hover.css@2.3.2/css/hover-min.css" integrity="sha384-qwz/+Tn3z5AMzRwR+8wmMa+uJpiWCujlEQcX+WAXzRkyvRAQPbIvKqhhKV2UBit2" crossorigin="anonymous">
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/animate.css@4.1.1/animate.min.css" integrity="sha384-Gu3KVV2H9d+yA4QDpVB7VcOyhJlAVrcXd0thEjr4KznfaFPLe0xQJyonVxONa4ZC" crossorigin="anonymous">
+<style>
+/* 管理后台 2.0 */
+.mgr-view { margin-top: 14px; }
+.mgr-cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(96px, 1fr)); gap: 8px; margin-bottom: 14px; }
+.mgr-card { background: var(--glass-bg); border: 1px solid var(--glass-border); border-radius: 12px; padding: 10px 8px; text-align: center; }
+.mgr-card strong { display: block; font-size: 1.35rem; color: var(--secondary); }
+.mgr-card span { font-size: 0.72rem; color: var(--text-secondary); }
+.mgr-sub { font-size: 0.85rem; margin: 12px 0 6px; color: var(--text-secondary); }
+.mgr-ban-form { display: grid; gap: 8px; margin-bottom: 12px; padding: 12px; background: var(--glass-bg); border: 1px solid var(--glass-border); border-radius: 12px; }
+.mgr-ban-form .field { margin-bottom: 2px; }
+.mgr-ban-form select, .mgr-ban-form input { width: 100%; }
+.adm-item { display: flex; align-items: center; gap: 10px; padding: 10px 8px; border-bottom: 1px solid var(--glass-border); }
+.adm-item .adm-meta { flex: 1; min-width: 0; }
+.adm-item .adm-meta strong { font-size: 0.9rem; }
+.adm-item .adm-sub { display: block; font-size: 0.75rem; color: var(--text-secondary); margin-top: 2px; }
+.adm-item .adm-desc { display: block; font-size: 0.7rem; color: var(--text-secondary); opacity: .7; margin-top: 2px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.adm-item .adm-actions { flex-shrink: 0; display: flex; gap: 6px; }
+.btn-s { font-size: 0.75rem !important; padding: 0.3rem 0.7rem !important; }
+.danger { color: #ff6b5e !important; border-color: rgba(255,107,94,.4) !important; }
+</style>
 </head>
 <body>
 
@@ -375,6 +395,10 @@
         <button class="seg-btn is-on" data-adm="pending" type="button">待审 <span id="admPendingCnt"></span></button>
         <button class="seg-btn" data-adm="published" type="button">已发布</button>
         <button class="seg-btn" data-adm="mail" type="button">邮件服务</button>
+        <button class="seg-btn" data-adm="stats" type="button">访客 <span class="btn-en">STATS</span></button>
+        <button class="seg-btn" data-adm="logs" type="button">日志 <span class="btn-en">LOGS</span></button>
+        <button class="seg-btn" data-adm="bans" type="button">封禁 <span class="btn-en">BANS</span></button>
+        <button class="seg-btn" data-adm="users" type="button">用户 <span class="btn-en">USERS</span></button>
       </div>
 
       <!-- 待审 / 已发布列表 -->
@@ -406,6 +430,54 @@
           <button id="mailTest" class="btn btn-line" type="button">测试发送</button>
           <button id="mailSave" class="btn btn-solid" type="button">保存配置</button>
         </div>
+      </div>
+
+      <!-- 访客统计 -->
+      <div id="admStatsView" class="mgr-view" hidden>
+        <div class="mgr-cards" id="mgrStatCards"></div>
+        <p class="mgr-sub">最近访问 <span class="btn-en">RECENT VISITS</span></p>
+        <div class="adm-list" id="mgrVisitList"><p class="au-msg" style="padding:16px 0;text-align:center">加载中…</p></div>
+      </div>
+
+      <!-- 操作日志 -->
+      <div id="admLogsView" class="mgr-view" hidden>
+        <div class="adm-list" id="mgrLogList"><p class="au-msg" style="padding:16px 0;text-align:center">加载中…</p></div>
+      </div>
+
+      <!-- 封禁管理 -->
+      <div id="admBansView" class="mgr-view" hidden>
+        <div class="mgr-ban-form">
+          <label class="field"><span>类型</span>
+            <select id="mgrBanType">
+              <option value="ip">IP 地址 / 段</option>
+              <option value="email">邮箱</option>
+            </select>
+          </label>
+          <label class="field"><span>值（如 1.2.3.4 或 1.2.3.0）</span>
+            <input id="mgrBanValue" type="text" maxlength="64" placeholder="1.2.3.4">
+          </label>
+          <label class="field"><span>原因</span>
+            <input id="mgrBanReason" type="text" maxlength="200" placeholder="可选">
+          </label>
+          <label class="field"><span>时长</span>
+            <select id="mgrBanExpire">
+              <option value="">永久</option>
+              <option value="3600000">1 小时</option>
+              <option value="86400000">1 天</option>
+              <option value="604800000">7 天</option>
+              <option value="2592000000">30 天</option>
+            </select>
+          </label>
+          <button id="mgrBanAdd" class="btn btn-solid" type="button">添加封禁</button>
+          <p id="mgrBanMsg" class="au-msg" hidden></p>
+        </div>
+        <p class="mgr-sub">封禁列表 <span class="btn-en">BANS</span></p>
+        <div class="adm-list" id="mgrBanList"><p class="au-msg" style="padding:16px 0;text-align:center">加载中…</p></div>
+      </div>
+
+      <!-- 用户管理 -->
+      <div id="admUsersView" class="mgr-view" hidden>
+        <div class="adm-list" id="mgrUserList"><p class="au-msg" style="padding:16px 0;text-align:center">加载中…</p></div>
       </div>
     </div>
 
