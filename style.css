@@ -719,6 +719,9 @@ button{font-family:inherit;cursor:pointer}
 .music-cover{flex:0 0 auto;width:46px;height:46px;border:1px solid var(--hair-soft);border-radius:2px;overflow:hidden;background:var(--ink-3)}
 .music-cover img{width:100%;height:100%;object-fit:cover;display:block}
 .music-cover-glyph{display:flex;align-items:center;justify-content:center;width:100%;height:100%;color:var(--verm);font-family:var(--serif);font-size:20px}
+
+/* 音乐后端待部署：先收起声匣入口，避免访客看到报错；部署好删除下面这行即可恢复 */
+#musicOpenBtn{display:none}
 .music-info{flex:1;min-width:0}
 .music-info strong{display:block;font-family:var(--serif);font-weight:600;font-size:14px;color:var(--bone);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .music-info small{display:block;font-family:var(--mono);font-size:10px;color:var(--bone-faint);margin-top:3px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
