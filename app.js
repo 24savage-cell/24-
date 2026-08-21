@@ -631,4 +631,414 @@ async function refreshAdminView() {
     } catch { $('#admPendingCnt').textContent = ''; }
     switchView(S.admView);
   } else {
-    $('#admEmail').value = S.session
+    $('#admEmail').value = S.session && !S.session.e ? '' : '';
+    $('#admPass').value = '';
+    $('#admMsg').hidden = true;
+  }
+}
+function switchView(v) {
+  S.admView = v;
+  $$('#admSeg .seg-btn').forEach(b => b.classList.toggle('is-on', b.dataset.adm === v));
+  $('#admMailView').hidden = v !== 'mail';
+  $('#admListWrap').hidden = v === 'mail';
+  if (v === 'mail') { openAdmMail(); return; }
+  renderAdmList(v);
+}
+async function renderAdmList(v) {
+  const wrap = $('#admListWrap');
+  wrap.innerHTML = '<p class="au-msg" style="padding:20px 0;text-align:center">加载中…</p>';
+  let rows = [];
+  try {
+    const q = v === 'pending' ? db.listPending() : db.listAll();
+    const { data, error } = await q;
+    if (error) throw error;
+    rows = data || [];
+  } catch (e) {
+    wrap.innerHTML = '<p class="au-msg" style="color:var(--verm)">读取失败：' + esc(e.message) + '</p>';
+    return;
+  }
+  if (v === 'published') rows = rows.filter(r => r.status === 'approved');
+  if (v === 'pending') rows = rows.filter(r => r.status === 'pending');
+  if (!rows.length) {
+    wrap.innerHTML = '<p class="au-msg" style="padding:20px 0;text-align:center">' + (v === 'pending' ? '暂无待审投稿' : '暂无已发布作品') + '</p>';
+    return;
+  }
+  wrap.innerHTML = '';
+  rows.forEach(r => {
+    const el = document.createElement('div');
+    el.className = 'adm-item';
+    el.innerHTML = `
+      <img class="adm-thumb" src="${esc(db.pubUrl(r.thumb_key) || r.thumb || '')}" alt="" onerror="this.style.visibility='hidden'">
+      <div class="adm-meta">
+        <strong>${esc(r.title)}</strong>
+        <span class="adm-sub">by ${esc(r.by)} · ${fmtTs(r.ts)}${r.no ? ' · Nº ' + esc(r.no) : ''}</span>
+        <span class="adm-desc">${esc(r.desc || '')}</span>
+      </div>
+      <div class="adm-actions">
+        ${r.status !== 'approved' ? `<button class="btn btn-solid btn-s" data-adm-approve="${esc(r.id)}">批准</button>` : `<button class="btn btn-line btn-s" data-adm-reject="${esc(r.id)}">下架</button>`}
+        <button class="btn btn-ghost btn-s danger" data-adm-del="${esc(r.id)}">删除</button>
+      </div>`;
+    wrap.appendChild(el);
+  });
+
+  wrap.querySelectorAll('[data-adm-approve]').forEach(b => b.addEventListener('click', () => doApprove(b.dataset.admApprove)));
+  wrap.querySelectorAll('[data-adm-reject]').forEach(b => b.addEventListener('click', () => doReject(b.dataset.admReject)));
+  wrap.querySelectorAll('[data-adm-del]').forEach(b => b.addEventListener('click', () => doDelete(b.dataset.admDel)));
+}
+
+async function doApprove(id) {
+  const row = (await db.listAll()).data.find(x => x.id === id);
+  if (!row) return;
+  const no = pad3(row.no ? Number(String(row.no).replace(/\D/g, '')) : await nextNo());
+  const { error } = await db.adminUpdate(id, { status: 'approved', no });
+  if (error) { toast('批准失败：' + error.message, true); return; }
+  toast('已批准，作品公开展出');
+  refreshAdminView(); loadCloud().then(renderAll);
+}
+async function doReject(id) {
+  if (!confirm('下架后作品将不再公开，可再次在待审中批准。继续？')) return;
+  const { error } = await db.adminUpdate(id, { status: 'pending', no: null });
+  if (error) { toast('下架失败：' + error.message, true); return; }
+  toast('已下架');
+  refreshAdminView(); loadCloud().then(renderAll);
+}
+async function doDelete(id) {
+  if (!confirm('确认永久删除该作品及其图片？此操作不可恢复。')) return;
+  const rows = (await db.listAll()).data || [];
+  const r = rows.find(x => x.id === id);
+  try {
+    await db.adminRemove(id, { img_key: r && r.img_key, thumb_key: r && r.thumb_key });
+    toast('已永久删除');
+    refreshAdminView(); loadCloud().then(renderAll);
+  } catch (e) { toast('删除失败：' + e.message, true); }
+}
+async function nextNo() {
+  const { data } = await db.client().from('art').select('no').neq('no', null);
+  const nums = (data || []).map(x => Number(String(x.no).replace(/\D/g, '')) || 0);
+  return (Math.max(0, ...nums) + 1);
+}
+
+/* 邮件服务（仅管理员面板） */
+function openAdmMail() {
+  const cfg = MAIL.load();
+  $('#mjService').value = cfg.emailjs.serviceId || '';
+  $('#mjTemplate').value = cfg.emailjs.templateId || '';
+  $('#mjKey').value = cfg.emailjs.publicKey || '';
+  $('#mailMsg').hidden = true;
+}
+function handleAdmLogin() {
+  const email = $('#admEmail').value.trim().toLowerCase();
+  const pass = $('#admPass').value;
+  if (!email || !pass) { $('#admMsg').textContent = '请输入邮箱和密码'; $('#admMsg').hidden = false; return; }
+  db.adminLogin(email, pass)
+    .then(() => {
+      $('#admMsg').hidden = true;
+      toast('已登录管理后台');
+      refreshAdminView();
+    })
+    .catch(e => { $('#admMsg').textContent = '登录失败：' + (e.message || '请检查凭证'); $('#admMsg').hidden = false; });
+}
+async function handleAdmLogout() {
+  await db.adminLogout();
+  S.adminAuthed = false;
+  toast('已退出后台');
+  refreshAdminView();
+}
+
+/* ---------- 分享 ---------- */
+function shareLink() {
+  copyText(location.origin + location.pathname);
+}
+async function copyText(t) {
+  try {
+    await navigator.clipboard.writeText(t);
+    toast('链接已复制');
+  } catch {
+    const ta = document.createElement('textarea');
+    ta.value = t; document.body.appendChild(ta); ta.select();
+    try { document.execCommand('copy'); toast('链接已复制'); } catch { toast('复制失败', true); }
+    ta.remove();
+  }
+}
+
+/* ---------- 事件绑定 ---------- */
+function bindUI() {
+  $('#uploadBtn').addEventListener('click', openUpload);
+  $$('[data-open-upload]').forEach(b => b.addEventListener('click', openUpload));
+  $$('[data-scroll-gallery]').forEach(b => b.addEventListener('click', () => $('#gallery').scrollIntoView({ behavior: 'smooth' })));
+  $$('[data-scroll-notes]').forEach(b => b.addEventListener('click', () => { const n = $('#notes'); if (n) n.scrollIntoView({ behavior: 'smooth' }); }));
+  $('#authBtn').addEventListener('click', () => openAuth('reg'));
+  $('#signLoginHint').addEventListener('click', () => { closeUpload(); openAuth('reg'); });
+  $('#meChip').addEventListener('click', e => {
+    if (e.target.tagName === 'U' || confirm(`退出登录 ${S.session.n}？`)) {
+      S.session = null; localStorage.removeItem(LS.me); renderSession(); toast('已退出登录');
+      CHAT.updateModeUI();
+    }
+  });
+
+  // 聊天室
+  $('#chatOpenBtn').addEventListener('click', () => CHAT.open());
+  $('#chatClose').addEventListener('click', () => CHAT.close());
+  $('#chatModeAnon').addEventListener('click', () => { S.chat.mode = 'anon'; CHAT.updateModeUI(); });
+  $('#chatModeAct').addEventListener('click', () => {
+    if (!S.session || !S.session.n) { toast('登录账号后可使用账号身份发言', true); openAuth('reg'); return; }
+    S.chat.mode = 'account'; CHAT.updateModeUI();
+  });
+  $('#chatForm').addEventListener('submit', e => {
+    e.preventDefault();
+    const inp = $('#chatBox');
+    CHAT.send(inp.value).finally(() => { inp.value = ''; });
+  });
+
+  // 管理后台
+  $('#adminEntry').addEventListener('click', openAdmin);
+  $('#admLogin').addEventListener('click', handleAdmLogin);
+  $('#admPass').addEventListener('keydown', e => { if (e.key === 'Enter') handleAdmLogin(); });
+  $('#admLogout').addEventListener('click', handleAdmLogout);
+  $$('#admSeg .seg-btn').forEach(b => b.addEventListener('click', () => switchView(b.dataset.adm)));
+
+  // 账号（邮箱验证码）
+  $('#auSendCode').addEventListener('click', handleSendCode);
+  $('#auCode').addEventListener('input', e => {
+    e.target.value = e.target.value.replace(/\D/g, '').slice(0, 6);
+  });
+  $('#auCode').addEventListener('keydown', e => { if (e.key === 'Enter') handleAuth(); });
+  $('#auPass').addEventListener('keydown', e => { if (e.key === 'Enter') handleAuth(); });
+
+  // 人机验证
+  $('#capRefresh').addEventListener('click', () => CAPTCHA.draw($('#capCanvas')));
+  $('#capCanvas').addEventListener('click', () => CAPTCHA.draw($('#capCanvas')));
+  $('#capInput').addEventListener('keydown', e => { if (e.key === 'Enter') $('#capOk').click(); });
+  $('#capOk').addEventListener('click', () => CAPTCHA.verify());
+  $('#capCancel').addEventListener('click', CAPTCHA.close);
+  $('#capClose').addEventListener('click', CAPTCHA.close);
+  document.addEventListener('mousemove', () => CAPTCHA.trackMove());
+
+  // 邮件服务保存/测试（仅后台）
+  $('#mailSave').addEventListener('click', handleMailSave);
+  $('#mailTest').addEventListener('click', handleMailTest);
+  $('#mjReveal').addEventListener('click', () => {
+    const inp = $('#mjKey');
+    inp.type = inp.type === 'password' ? 'text' : 'password';
+    $('#mjReveal').textContent = inp.type === 'password' ? '显示' : '隐藏';
+  });
+
+  // 投稿弹窗
+  const dz = $('#dropzone'), fi = $('#fileInput');
+  dz.addEventListener('click', e => { if (e.target.id !== 'dzReset') fi.click(); });
+  dz.addEventListener('keydown', e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); fi.click(); } });
+  ['dragenter', 'dragover'].forEach(ev => dz.addEventListener(ev, e => { e.preventDefault(); dz.classList.add('drag'); }));
+  ['dragleave', 'drop'].forEach(ev => dz.addEventListener(ev, e => { e.preventDefault(); dz.classList.remove('drag'); }));
+  dz.addEventListener('drop', e => handleFile(e.dataTransfer.files[0]));
+  fi.addEventListener('change', () => { handleFile(fi.files[0]); fi.value = ''; });
+  $('#dzReset').addEventListener('click', e => { e.stopPropagation(); resetUploadUI(); });
+  $('#upSubmit').addEventListener('click', handleUpload);
+
+  // 弹窗通用关闭
+  $$('.modal [data-close]').forEach(b => b.addEventListener('click', () => {
+    b.closest('.modal').hidden = true;
+    document.body.style.overflow = '';
+  }));
+  $$('.modal').forEach(m => m.addEventListener('click', e => {
+    if (e.target === m) { m.hidden = true; document.body.style.overflow = ''; }
+  }));
+
+  // 账号
+  $$('#authSeg .seg-btn').forEach(b => b.addEventListener('click', () => { S.authMode = b.dataset.auth; syncAuthUI(); }));
+  $('#auSubmit').addEventListener('click', handleAuth);
+
+  // 排序 / 筛选
+  $$('#sortSeg .seg-btn').forEach(b => b.addEventListener('click', () => {
+    $$('#sortSeg .seg-btn').forEach(x => x.classList.remove('is-on'));
+    b.classList.add('is-on'); S.sort = b.dataset.sort; renderAll();
+  }));
+  $$('#filterSeg .seg-btn').forEach(b => b.addEventListener('click', () => {
+    $$('#filterSeg .seg-btn').forEach(x => x.classList.remove('is-on'));
+    b.classList.add('is-on'); S.filter = b.dataset.filter; renderAll();
+  }));
+
+  // 灯箱
+  $('#lbClose').addEventListener('click', closeLb);
+  $('#lbPrev').addEventListener('click', () => openLb((S.lbPos - 1 + S.lbList.length) % S.lbList.length));
+  $('#lbNext').addEventListener('click', () => openLb((S.lbPos + 1) % S.lbList.length));
+  $('#lbLike').addEventListener('click', () => { const a = S.lbList[S.lbPos]; if (a) toggleLike(a.id); });
+  $('#lightbox').addEventListener('click', e => { if (e.target.id === 'lightbox') closeLb(); });
+
+  // 分享
+  $('#statusChip').addEventListener('click', () => { if (S.cloudArts.length >= 0) shareLink(); });
+  $('#shareBtn').addEventListener('click', shareLink);
+}
+
+/* 邮件服务设置处理（拼装/校验/保存与测试，凭证已在后台页） */
+function collectMailCfg() {
+  const cfg = MAIL.load();
+  cfg.emailjs.serviceId = $('#mjService').value.trim();
+  cfg.emailjs.templateId = $('#mjTemplate').value.trim();
+  cfg.emailjs.publicKey = $('#mjKey').value.trim();
+  return cfg;
+}
+function handleMailSave() {
+  const cfg = collectMailCfg();
+  if (!(cfg.emailjs.serviceId && cfg.emailjs.templateId && cfg.emailjs.publicKey)) { mailMsg('请完整填写 EmailJS 三项配置', true); return; }
+  MAIL.save(cfg);
+  mailMsg('配置已保存');
+  toast('邮件服务配置已保存');
+}
+async function handleMailTest() {
+  const cfg = collectMailCfg();
+  if (!(cfg.emailjs.serviceId && cfg.emailjs.templateId && cfg.emailjs.publicKey)) { mailMsg('请先完整填写 EmailJS 配置', true); return; }
+  mailMsg('正在发送测试邮件…');
+  try {
+    await MAIL.sendCode(cfg.formsubmit.toEmail || 'test@example.com', '123456');
+    mailMsg('测试邮件已发送，请查收');
+  } catch (e) {
+    console.warn(e);
+    mailMsg('测试发送失败：' + (e.message || '请检查配置'), true);
+  }
+}
+function mailMsg(t, isErr) {
+  const el = $('#mailMsg');
+  el.textContent = t;
+  el.style.color = isErr ? 'var(--verm)' : 'var(--bone-dim)';
+  el.hidden = false;
+}
+
+/* ---------- 聊天室 ---------- */
+const CHAT = {
+  ANON_LS: 'sa_chat_anon',
+
+  anonName() {
+    let id = localStorage.getItem(this.ANON_LS);
+    if (!id) { id = uid().slice(0, 6); localStorage.setItem(this.ANON_LS, id); }
+    return '游客·' + id;
+  },
+  anonKey() {
+    let id = localStorage.getItem(this.ANON_LS);
+    if (!id) { id = uid().slice(0, 12); localStorage.setItem(this.ANON_LS, id); }
+    return id;
+  },
+
+  open() {
+    if (S.chat.open) return;
+    S.chat.open = true;
+    $('#chatModal').hidden = false;
+    document.body.style.overflow = 'hidden';
+    this.updateModeUI();
+    this.load();
+    if (!S.chat.chSub) {
+      S.chat.chSub = db.subscribeChat(row => this.onNew(row));
+    }
+    setTimeout(() => $('#chatBox').focus(), 120);
+  },
+  close() {
+    S.chat.open = false;
+    $('#chatModal').hidden = true;
+    document.body.style.overflow = '';
+  },
+
+  currentMode() { return S.chat.mode; },
+  identity() {
+    if (S.chat.mode === 'account' && S.session && S.session.n) {
+      return { author: S.session.n, kind: 'account', key: S.session.e ? 'acct:' + S.session.e : 'acct:session' };
+    }
+    return { author: this.anonName(), kind: 'anon', key: 'anon:' + this.anonKey() };
+  },
+
+  updateModeUI() {
+    const isAccount = S.chat.mode === 'account' && S.session && S.session.n;
+    $('#chatModeAnon').classList.toggle('is-on', !isAccount);
+    $('#chatModeAct').classList.toggle('is-on', isAccount);
+    if (isAccount) {
+      $('#chatHint').textContent = '以账号「' + S.session.n + '」身份发言';
+      $('#chatModeAct').title = '当前账号：' + S.session.n;
+    } else {
+      $('#chatHint').textContent = '以「' + this.anonName() + '」匿名发言';
+      $('#chatModeAct').title = '登录账号后可用账号身份';
+    }
+  },
+
+  async load() {
+    const list = $('#chatList');
+    list.innerHTML = '<li class="chat-loading">正在进入观展厅…</li>';
+    try {
+      const msgs = await db.chatRecent(60);
+      list.innerHTML = '';
+      if (!msgs.length) {
+        list.innerHTML = '<li class="chat-system">— 还没有人说话，来开个头吧 —</li>';
+      } else {
+        msgs.forEach(m => this.renderMsg(m, false));
+      }
+      this.scrollBottom(false);
+    } catch (e) {
+      console.warn('chat load failed', e);
+      list.innerHTML = '<li class="chat-loading">云端聊天暂时不可达，请稍后再试</li>';
+    }
+  },
+
+  renderMsg(m, isNew) {
+    const list = $('#chatList');
+    const id = 'chat-' + m.id;
+    if (document.getElementById(id)) return;
+    const li = document.createElement('li');
+    li.id = id;
+    li.className = 'chat-msg other';
+    const me = this.isMine(m);
+    if (me) li.classList.add('me');
+    const kindTag = m.kind === 'account' ? '<span class="chat-kind">账号</span>' : (m.kind === 'seed' ? '<span class="chat-kind">馆方</span>' : '');
+    const author = m.kind === 'seed' ? (m.author || '24.savage') : m.author;
+    li.innerHTML = `<span class="chat-name">${esc(author)}${kindTag}${me ? ' · 你' : ''}</span>${esc(m.body)}`;
+    list.appendChild(li);
+    if (isNew) this.scrollBottom(true);
+  },
+
+  /* 判断是否本人消息：匿名用会话ID，账号用昵称 */
+  isMine(m) {
+    const ident = this.identity();
+    if (ident.kind === 'anon' && m.kind === 'anon') {
+      return m.author === ident.author;
+    }
+    return ident.kind === 'account' && m.kind === 'account' && m.author === ident.author;
+  },
+
+  scrollBottom(smooth) {
+    const list = $('#chatList');
+    list.scrollTop = list.scrollHeight;
+  },
+
+  onNew(row) {
+    const payload = row.new || row;
+    if (S.chat.open) this.renderMsg(payload, true);
+  },
+
+  async send(text) {
+    const t = (text || '').trim();
+    if (!t) return;
+    const ident = this.identity();
+    if (ident.kind === 'account' && !S.session) { toast('请先登录账号', true); return; }
+    try {
+      const id = await db.chatSend(t, ident.author, ident.kind, ident.key);
+      // 乐观更新：发送成功立即插入本地，避免依赖 Realtime 回流延迟
+      if (id && S.chat.open) {
+        this.renderMsg({ id, body: t, author: ident.author, kind: ident.kind, ts: Date.now() }, true);
+      }
+      this.updateModeUI();
+    } catch (e) {
+      toast(e.message || '发送失败', true);
+    }
+  }
+};
+
+function bindKeys() {
+  document.addEventListener('keydown', e => {
+    if (!$('#lightbox').hidden) {
+      if (e.key === 'Escape') closeLb();
+      else if (e.key === 'ArrowLeft') $('#lbPrev').click();
+      else if (e.key === 'ArrowRight') $('#lbNext').click();
+    } else if (e.key === 'Escape') {
+      $$('.modal').forEach(m => { if (!m.hidden) { m.hidden = true; document.body.style.overflow = ''; } });
+    }
+  });
+}
+
+/* ---------- 启动 ---------- */
+document.addEventListener('DOMContentLoaded', init);
