@@ -8,8 +8,8 @@
 'use strict';
 
 const SUPACFG = {
-  url: 'https://njrnwdcdkzhceonaguok.supabase.co',
-  anonKey: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im5qcm53ZGNka3poY2VvbmFndW9rIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODU5OTQ1NTIsImV4cCI6MjEwMTU3MDU1Mn0.gplyDb2hbeayxN7muqQCp3qyax0MbF7ekdKEbHs1S1w',
+  url: 'https://vqjyhsznnuskxhsmfdxx.supabase.co',
+  anonKey: 'sb_publishable_B-IgCqSmZjAc2xgutETSKg_rJE6ADW2',
   bucket: 'savage'
 };
 
@@ -141,5 +141,39 @@ const db = {
   /* 点赞（对已批准作品 +1/-1，幂等由客户端控制） */
   like(id) {
     return db.client().rpc('art_like', { target_id: id });
+  },
+
+  /* ---------- 聊天室 ---------- */
+
+  /* 拉取最近消息（倒序取 N 条，再按 id 正序展示） */
+  async chatRecent(count = 50) {
+    const { data, error } = await db.client()
+      .from('chat')
+      .select('id,body,author,kind,ts')
+      .order('id', { ascending: false })
+      .limit(count);
+    if (error) throw new Error(error.message);
+    return (data || []).reverse();
+  },
+
+  /* 发送消息：走 SECURITY DEFINER 函数（含服务端限流） */
+  async chatSend(body, author, kind, sessionKey) {
+    const { data, error } = await db.client().rpc('chat_send', {
+      p_body: body, p_author: author, p_kind: kind, p_session_key: sessionKey
+    });
+    if (error) {
+      const code = error.message || '';
+      if (/RATE_LIMIT/.test(code)) throw new Error('发送太频繁，请稍候再试');
+      throw new Error('消息发送失败');
+    }
+    return data;
+  },
+
+  /* 订阅新消息（实时） */
+  subscribeChat(cb) {
+    return db.client()
+      .channel('chat-room')
+      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'chat' }, cb)
+      .subscribe();
   }
 };

@@ -80,6 +80,58 @@
       "seed": true,
       "src": "works/p6.jpg",
       "thumb": "works/p6_t.jpg"
+    },
+    {
+      "id": "seed-007",
+      "no": "007",
+      "title": "磷光深海",
+      "en": "THE PHOSPHORESCENT DEEP",
+      "desc": "发光巨鲸穿越荧光峡谷，群星沉入海床。",
+      "by": "24.savage",
+      "ts": 1754764800000,
+      "likes": 44,
+      "seed": true,
+      "src": "works/p7.jpg",
+      "thumb": "works/p7_t.jpg"
+    },
+    {
+      "id": "seed-008",
+      "no": "008",
+      "title": "雷暴神鹿",
+      "en": "THE STORM STAG",
+      "desc": "熔岩与星尘铸成的鹿，于闪电之下奔过草原。",
+      "by": "24.savage",
+      "ts": 1755100800000,
+      "likes": 39,
+      "seed": true,
+      "src": "works/p8.jpg",
+      "thumb": "works/p8_t.jpg"
+    },
+    {
+      "id": "seed-009",
+      "no": "009",
+      "title": "极夜冰殿",
+      "en": "THE GLASS NORTH",
+      "desc": "极光缠绕的冰晶宫殿，悬浮在无边的墨色夜里。",
+      "by": "24.savage",
+      "ts": 1755436800000,
+      "likes": 51,
+      "seed": true,
+      "src": "works/p9.jpg",
+      "thumb": "works/p9_t.jpg"
+    },
+    {
+      "id": "seed-010",
+      "no": "010",
+      "title": "沙蚀圣殿",
+      "en": "THE SAND-ERODED SANCTUARY",
+      "desc": "沙丘尽头的废墟里，一束铜光自穹顶倾落。",
+      "by": "24.savage",
+      "ts": 1755782400000,
+      "likes": 33,
+      "seed": true,
+      "src": "works/p10.jpg",
+      "thumb": "works/p10_t.jpg"
     }
   ]
 }

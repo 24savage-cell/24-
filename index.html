@@ -4,6 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <title>野性档案 SAVAGE ARCHIVE — 24.savage 的图片展览</title>
+<link rel="preload" as="style" href="https://cdn.jsdelivr.net/npm/hover.css@2.3.2/css/hover-min.css">
 <meta name="description" content="野性档案 SAVAGE ARCHIVE · 策展人 24.savage · 一座向所有观众开放的公网图片展览馆，支持注册账号或匿名投稿。">
 <meta property="og:title" content="野性档案 SAVAGE ARCHIVE — 24.savage">
 <meta property="og:description" content="一座向所有观众开放的公网图片展览馆 · 注册或匿名投稿你的作品">
@@ -14,6 +15,8 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,300;9..144,600;9..144,900&family=IBM+Plex+Mono:wght@400;600&family=Noto+Serif+SC:wght@600;900&family=Noto+Sans+SC:wght@400;500;700&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="style.css">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/hover.css@2.3.2/css/hover-min.css">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/animate.css@4.1.1/animate.min.css">
 </head>
 <body>
 
@@ -46,23 +49,25 @@
     <button id="authBtn" class="btn btn-ghost" type="button">注册 / 登录</button>
     <button id="meChip" class="chip chip-me" type="button" hidden></button>
     <button id="adminEntry" class="btn btn-ghost" type="button" title="管理后台">管理 <span class="btn-en">ADMIN</span></button>
+    <button id="chatOpenBtn" class="btn btn-line" type="button" title="进入聊天室">聊天室 <span class="btn-en">ROOM</span></button>
     <button id="uploadBtn" class="btn btn-solid" type="button">投稿 <span class="btn-en">UPLOAD</span></button>
   </div>
 </header>
 
 <!-- 主视觉 -->
 <section class="hero" id="top">
-  <div class="hero-frame">
+  <div class="hero-frame" id="stooge-hero">
     <p class="hero-kicker"><span class="kicker-rule"></span>公网图片展览馆 · OPEN SUBMISSION<span class="kicker-rule"></span></p>
     <h1 class="hero-title">
       <span class="hero-cn">野性档案</span>
-      <span class="hero-en" aria-hidden="true">SAVAGE<br>ARCHIVE</span>
+      <span class="hero-en" id="stooge-en" aria-hidden="true">SAVAGE<br>ARCHIVE</span>
     </h1>
     <p class="hero-by">策展人 CURATOR — <strong>24.savage</strong><span class="hero-sep">/</span>所有人都可以成为参展者</p>
     <div class="hero-cta">
       <button class="btn btn-solid btn-big" type="button" data-open-upload>上传作品 <span class="btn-en">SUBMIT</span></button>
       <button class="btn btn-line btn-big" type="button" data-scroll-gallery>进入展厅 <span class="btn-en">ENTER</span></button>
     </div>
+    <button class="hero-notes" type="button" data-scroll-notes>馆藏手记 <span class="btn-en">THE NOTES ↓</span></button>
   </div>
   <div class="ticker" aria-hidden="true">
     <div class="ticker-track" id="tickerTrack"></div>
@@ -71,7 +76,7 @@
 
 <!-- 展厅 -->
 <main class="hall" id="gallery">
-  <div class="hall-head">
+  <div class="hall-head" data-aos="fade-up" data-aos-once="true">
     <h2 class="hall-title">展厅 <span class="hall-en">THE&nbsp;HALL</span></h2>
     <div class="hall-tools">
       <div class="seg" id="sortSeg" role="tablist" aria-label="排序">
@@ -105,9 +110,77 @@
   </div>
 </main>
 
+<!-- 展厅数据 -->
+<section class="hall-num" data-aos="fade-up" data-aos-once="true">
+  <div class="num-block"><strong id="numWorks">10</strong><span class="num-en">WORKS</span><small>馆藏作品</small></div>
+  <div class="num-block"><strong id="numTerms">2</strong><span class="num-en">MODES</span><small>展览形态</small></div>
+  <div class="num-block"><strong>24</strong><span class="num-en">EST.</span><small>策展人代号</small></div>
+  <div class="num-block"><strong>∞</strong><span class="num-en">OPEN</span><small>向公众投稿</small></div>
+</section>
+
+<!-- 策展人手记 -->
+<section class="curator" id="notes">
+  <div class="cut-head" data-aos="fade-up" data-aos-once="true">
+    <p class="cut-kicker"><span class="kicker-rule"></span>策展人手记 · CURATOR'S NOTES<span class="kicker-rule"></span></p>
+    <h2 class="cut-title">关于这座档案馆</h2>
+  </div>
+  <div class="cut-body">
+    <div class="cut-note" data-aos="fade-up" data-aos-once="true">
+      <p class="cut-no">壹</p>
+      <h3>从野性出发</h3>
+      <p>我收集的从来不是漂亮的风景，而是那些「仍然活着」的、带点野气的东西——深处的荧光、废墟里的圣光、风暴里奔跑的神鹿。它们提醒我们：自然从未真正被驯服。</p>
+    </div>
+    <div class="cut-note" data-aos="fade-up" data-aos-once="true">
+      <p class="cut-no">贰</p>
+      <h3>一座开放的馆</h3>
+      <p>这里不设门禁。任何人——无论是否注册——都可以把心里那只野物投进来。馆藏与你共同生长，你我都是策展人。</p>
+    </div>
+    <div class="cut-note" data-aos="fade-up" data-aos-once="true">
+      <p class="cut-no">叁</p>
+      <h3>存档即在场</h3>
+      <p>每件作品都被归档、编号、留存。在数据会消失的时代，我把它们钉在云上，作为「此刻我们相信过什么」的证词。</p>
+    </div>
+  </div>
+</section>
+
+<!-- 馆藏档案 -->
+<section class="dossier" data-aos="fade-up" data-aos-once="true">
+  <div class="dos-head">
+    <p class="dos-kicker"><span class="kicker-rule"></span>馆藏档案 · THE DOSSIER<span class="kicker-rule"></span></p>
+    <h2 class="dos-title"><span class="dos-cn">编年脉络</span><span class="dos-en">A CHRONOLOGY OF THE WILD</span></h2>
+  </div>
+  <ol class="dos-list">
+    <li class="dos-item" data-aos="fade-up" data-aos-once="true">
+      <span class="dos-no">006</span>
+      <div class="dos-txt"><h3>荒原天文台</h3><p>提灯者仰望猩红星云——文明仰望中的孤独与坚持。</p></div>
+      <span class="dos-year">2026.08</span>
+    </li>
+    <li class="dos-item" data-aos="fade-up" data-aos-once="true">
+      <span class="dos-no">007</span>
+      <div class="dos-txt"><h3>磷光深海</h3><p>发光巨鲸沉入海床——生命在无光处的自发光。</p></div>
+      <span class="dos-year">2026.08</span>
+    </li>
+    <li class="dos-item" data-aos="fade-up" data-aos-once="true">
+      <span class="dos-no">008</span>
+      <div class="dos-txt"><h3>雷暴神鹿</h3><p>熔岩与星尘铸成——野性在极端之下的显现。</p></div>
+      <span class="dos-year">2026.08</span>
+    </li>
+    <li class="dos-item" data-aos="fade-up" data-aos-once="true">
+      <span class="dos-no">009</span>
+      <div class="dos-txt"><h3>极夜冰殿</h3><p>极光缠绕的冰晶宫殿——澄澈与严寒并存之美。</p></div>
+      <span class="dos-year">2026.08</span>
+    </li>
+    <li class="dos-item" data-aos="fade-up" data-aos-once="true">
+      <span class="dos-no">010</span>
+      <div class="dos-txt"><h3>沙蚀圣殿</h3><p>废墟中的铜光倾落——荒芜之后的依旧庄严。</p></div>
+      <span class="dos-year">2026.08</span>
+    </li>
+  </ol>
+</section>
+
 <!-- 跋 -->
 <footer class="colophon">
-  <div class="colo-top">
+  <div class="colo-top" data-aos="fade-up" data-aos-once="true">
     <div class="colo-brand">
       <span class="colo-mark">24</span>
       <div><strong>野性档案 SAVAGE ARCHIVE</strong><small>一座运行在公网上的自由展览馆</small></div>
@@ -117,7 +190,7 @@
   <div class="colo-grid">
     <div class="colo-col">
       <h3>关于展馆</h3>
-      <p>由 <strong>24.savage</strong> 于 2026 年创立。馆藏为「野性档案」系列六件；其余展位向所有访客开放——注册账号或匿名上传均可，图像经浏览器压缩后存入公共云存储，全球可见。</p>
+      <p>由 <strong>24.savage</strong> 于 2026 年创立。馆藏为「野性档案」系列十件——从雨林霓虹到沙蚀圣殿；其余展位向所有访客开放——注册账号或匿名上传均可，图像经浏览器压缩后存入公共云存储，全球可见。</p>
     </div>
     <div class="colo-col">
       <h3>观展须知</h3>
@@ -338,12 +411,44 @@
   </div>
 </div>
 
+<!-- 聊天室 -->
+<div id="chatModal" class="chat-shell" hidden role="dialog" aria-modal="true" aria-label="聊天室">
+  <div class="chat-card">
+    <header class="chat-head">
+      <div class="chat-badge">ROOM</div>
+      <div class="chat-title"><strong>观展厅闲聊</strong><small>OPEN CHAT · 匿名或账号皆可发言</small></div>
+      <button id="chatClose" class="modal-x" type="button" aria-label="关闭">✕</button>
+    </header>
+
+    <div class="chat-mode">
+      <button class="seg-btn is-on" id="chatModeAnon" type="button">匿名游客</button>
+      <button class="seg-btn" id="chatModeAct" type="button" title="使用账号身份发言">账号身份</button>
+      <span class="chat-hint" id="chatHint">以「临时游客」身份发言</span>
+    </div>
+
+    <ol id="chatList" class="chat-list" aria-live="polite">
+      <li class="chat-loading">加载中…</li>
+    </ol>
+
+    <form id="chatForm" class="chat-input" autocomplete="off">
+      <input id="chatBox" type="text" maxlength="300" placeholder="说点什么…（Enter 发送，300 字内）">
+      <button class="btn btn-solid" id="chatSend" type="submit">发送</button>
+    </form>
+    <p class="chat-note">刷屏防护：3 秒仅 1 条 · 请文明发言 · 匿名身份仅本次会话有效</p>
+  </div>
+</div>
+
 <div id="toasts" class="toasts" aria-live="polite"></div>
 
+<script src="https://cdn.jsdelivr.net/npm/gsap@3.12.5/dist/gsap.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/lenis@1.1.18/dist/lenis.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/splitting@1.0.6/dist/splitting.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/aos@2.3.4/dist/aos.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
 <script src="security.js"></script>
 <script src="mail.js"></script>
 <script src="supabase.js"></script>
+<script src="beautify.js"></script>
 <script src="app.js"></script>
 </body>
 </html>

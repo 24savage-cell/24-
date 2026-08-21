@@ -56,7 +56,8 @@ const S = {
   authMode: 'reg',
   adminAuthed: false,
   admView: 'pending',
-  subs: []               // 实时订阅句柄
+  subs: [],               // 实时订阅句柄
+  chat: { open: false, mode: 'anon', anonId: null, chSub: null }
 };
 
 /* ---------- 初始化 ---------- */
@@ -594,6 +595,8 @@ async function handleAuth() {
     }
     closeAuth();
     renderSession();
+    CHAT.updateModeUI();
+    if (S.chat.open) CHAT.load();
   } catch (e) {
     auMsg(e.message || '操作失败，请重试');
   } finally {
@@ -763,12 +766,28 @@ function bindUI() {
   $('#uploadBtn').addEventListener('click', openUpload);
   $$('[data-open-upload]').forEach(b => b.addEventListener('click', openUpload));
   $$('[data-scroll-gallery]').forEach(b => b.addEventListener('click', () => $('#gallery').scrollIntoView({ behavior: 'smooth' })));
+  $$('[data-scroll-notes]').forEach(b => b.addEventListener('click', () => { const n = $('#notes'); if (n) n.scrollIntoView({ behavior: 'smooth' }); }));
   $('#authBtn').addEventListener('click', () => openAuth('reg'));
   $('#signLoginHint').addEventListener('click', () => { closeUpload(); openAuth('reg'); });
   $('#meChip').addEventListener('click', e => {
     if (e.target.tagName === 'U' || confirm(`退出登录 ${S.session.n}？`)) {
       S.session = null; localStorage.removeItem(LS.me); renderSession(); toast('已退出登录');
+      CHAT.updateModeUI();
     }
+  });
+
+  // 聊天室
+  $('#chatOpenBtn').addEventListener('click', () => CHAT.open());
+  $('#chatClose').addEventListener('click', () => CHAT.close());
+  $('#chatModeAnon').addEventListener('click', () => { S.chat.mode = 'anon'; CHAT.updateModeUI(); });
+  $('#chatModeAct').addEventListener('click', () => {
+    if (!S.session || !S.session.n) { toast('登录账号后可使用账号身份发言', true); openAuth('reg'); return; }
+    S.chat.mode = 'account'; CHAT.updateModeUI();
+  });
+  $('#chatForm').addEventListener('submit', e => {
+    e.preventDefault();
+    const inp = $('#chatBox');
+    CHAT.send(inp.value).finally(() => { inp.value = ''; });
   });
 
   // 管理后台
@@ -883,6 +902,131 @@ function mailMsg(t, isErr) {
   el.style.color = isErr ? 'var(--verm)' : 'var(--bone-dim)';
   el.hidden = false;
 }
+
+/* ---------- 聊天室 ---------- */
+const CHAT = {
+  ANON_LS: 'sa_chat_anon',
+
+  anonName() {
+    let id = localStorage.getItem(this.ANON_LS);
+    if (!id) { id = uid().slice(0, 6); localStorage.setItem(this.ANON_LS, id); }
+    return '游客·' + id;
+  },
+  anonKey() {
+    let id = localStorage.getItem(this.ANON_LS);
+    if (!id) { id = uid().slice(0, 12); localStorage.setItem(this.ANON_LS, id); }
+    return id;
+  },
+
+  open() {
+    if (S.chat.open) return;
+    S.chat.open = true;
+    $('#chatModal').hidden = false;
+    document.body.style.overflow = 'hidden';
+    this.updateModeUI();
+    this.load();
+    if (!S.chat.chSub) {
+      S.chat.chSub = db.subscribeChat(row => this.onNew(row));
+    }
+    setTimeout(() => $('#chatBox').focus(), 120);
+  },
+  close() {
+    S.chat.open = false;
+    $('#chatModal').hidden = true;
+    document.body.style.overflow = '';
+  },
+
+  currentMode() { return S.chat.mode; },
+  identity() {
+    if (S.chat.mode === 'account' && S.session && S.session.n) {
+      return { author: S.session.n, kind: 'account', key: S.session.e ? 'acct:' + S.session.e : 'acct:session' };
+    }
+    return { author: this.anonName(), kind: 'anon', key: 'anon:' + this.anonKey() };
+  },
+
+  updateModeUI() {
+    const isAccount = S.chat.mode === 'account' && S.session && S.session.n;
+    $('#chatModeAnon').classList.toggle('is-on', !isAccount);
+    $('#chatModeAct').classList.toggle('is-on', isAccount);
+    if (isAccount) {
+      $('#chatHint').textContent = '以账号「' + S.session.n + '」身份发言';
+      $('#chatModeAct').title = '当前账号：' + S.session.n;
+    } else {
+      $('#chatHint').textContent = '以「' + this.anonName() + '」匿名发言';
+      $('#chatModeAct').title = '登录账号后可用账号身份';
+    }
+  },
+
+  async load() {
+    const list = $('#chatList');
+    list.innerHTML = '<li class="chat-loading">正在进入观展厅…</li>';
+    try {
+      const msgs = await db.chatRecent(60);
+      list.innerHTML = '';
+      if (!msgs.length) {
+        list.innerHTML = '<li class="chat-system">— 还没有人说话，来开个头吧 —</li>';
+      } else {
+        msgs.forEach(m => this.renderMsg(m, false));
+      }
+      this.scrollBottom(false);
+    } catch (e) {
+      console.warn('chat load failed', e);
+      list.innerHTML = '<li class="chat-loading">云端聊天暂时不可达，请稍后再试</li>';
+    }
+  },
+
+  renderMsg(m, isNew) {
+    const list = $('#chatList');
+    const id = 'chat-' + m.id;
+    if (document.getElementById(id)) return;
+    const li = document.createElement('li');
+    li.id = id;
+    li.className = 'chat-msg other';
+    const me = this.isMine(m);
+    if (me) li.classList.add('me');
+    const kindTag = m.kind === 'account' ? '<span class="chat-kind">账号</span>' : (m.kind === 'seed' ? '<span class="chat-kind">馆方</span>' : '');
+    const author = m.kind === 'seed' ? (m.author || '24.savage') : m.author;
+    li.innerHTML = `<span class="chat-name">${esc(author)}${kindTag}${me ? ' · 你' : ''}</span>${esc(m.body)}`;
+    list.appendChild(li);
+    if (isNew) this.scrollBottom(true);
+  },
+
+  /* 判断是否本人消息：匿名用会话ID，账号用昵称 */
+  isMine(m) {
+    const ident = this.identity();
+    if (ident.kind === 'anon' && m.kind === 'anon') {
+      return m.author === ident.author;
+    }
+    return ident.kind === 'account' && m.kind === 'account' && m.author === ident.author;
+  },
+
+  scrollBottom(smooth) {
+    const list = $('#chatList');
+    list.scrollTop = list.scrollHeight;
+  },
+
+  onNew(row) {
+    const payload = row.new || row;
+    if (S.chat.open) this.renderMsg(payload, true);
+  },
+
+  async send(text) {
+    const t = (text || '').trim();
+    if (!t) return;
+    const ident = this.identity();
+    if (ident.kind === 'account' && !S.session) { toast('请先登录账号', true); return; }
+    try {
+      const id = await db.chatSend(t, ident.author, ident.kind, ident.key);
+      // 乐观更新：发送成功立即插入本地，避免依赖 Realtime 回流延迟
+      if (id && S.chat.open) {
+        this.renderMsg({ id, body: t, author: ident.author, kind: ident.kind, ts: Date.now() }, true);
+      }
+      this.updateModeUI();
+    } catch (e) {
+      toast(e.message || '发送失败', true);
+    }
+  }
+};
 
 function bindKeys() {
   document.addEventListener('keydown', e => {
