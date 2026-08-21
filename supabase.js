@@ -63,20 +63,18 @@ const db = {
     if (imgUp.error) throw new Error(imgUp.error.message || '原图上传失败');
     if (thumbUp.error) throw new Error(thumbUp.error.message || '缩略图上传失败');
 
-    const row = {
-      id,
-      title: art.title,
-      desc: art.desc || '',
-      by: art.by || '匿名观众',
-      likes: 0,
-      status: 'pending',
-      ts: art.ts,
-      w: art.w,
-      h: art.h,
-      thumb_key: thumbKey,
-      img_key: imgKey
-    };
-    const { error } = await sb.from('art').insert(row);
+    /* 通过 SECURITY DEFINER 函数写入待审（强制 status=pending，规避公开直插并锁死审核） */
+    const { error } = await sb.rpc('art_submit', {
+      p_id: id,
+      p_title: art.title,
+      p_desc: art.desc || '',
+      p_by: art.by || '匿名观众',
+      p_ts: art.ts,
+      p_w: art.w,
+      p_h: art.h,
+      p_img_key: imgKey,
+      p_thumb_key: thumbKey
+    });
     if (error) throw new Error(error.message || '投稿入库失败');
     return { id, img_key: imgKey, thumb_key: thumbKey };
   },
