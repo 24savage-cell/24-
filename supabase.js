@@ -180,5 +180,99 @@ const db = {
       .channel('chat-room')
       .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'chat' }, cb)
       .subscribe();
+  },
+
+  /* ---------- 管理后台 2.0 ---------- */
+
+  /* 稳定访客标识（localStorage，用于去重统计） */
+  sessionId() {
+    let s = '';
+    try { s = localStorage.getItem('sa_sid') || ''; } catch (e) {}
+    if (!s) {
+      s = 'v' + Date.now().toString(36) + Math.random().toString(36).slice(2, 10);
+      try { localStorage.setItem('sa_sid', s); } catch (e) {}
+    }
+    return s;
+  },
+
+  /* 页面访问埋点：返回 {banned} 表示该 IP 是否被封 */
+  async trackVisit() {
+    let ip = null;
+    try {
+      const cached = JSON.parse(localStorage.getItem('sa_ip') || 'null');
+      if (cached && Date.now() - cached.t < 86400000) ip = cached.ip;
+      else {
+        const r = await fetch('https://api.ipify.org?format=json', { cache: 'no-store' });
+        const j = await r.json();
+        if (j && j.ip) { ip = j.ip; localStorage.setItem('sa_ip', JSON.stringify({ ip, t: Date.now() })); }
+      }
+    } catch (e) {}
+    try {
+      const { data } = await db.client().rpc('track_visit', {
+        p_ip: ip,
+        p_ua: (navigator.userAgent || '').slice(0, 200),
+        p_path: (location.pathname || '').slice(0, 100),
+        p_ref: (document.referrer || '').slice(0, 200) || null,
+        p_session: db.sessionId()
+      });
+      return data || null;
+    } catch (e) { return null; }
+  },
+
+  /* 管理员操作审计 */
+  async logAction(action, detail) {
+    try { await db.client().rpc('audit_log', { p_action: action, p_detail: detail || null }); }
+    catch (e) {}
+  },
+
+  /* 访客统计（管理员） */
+  async mgrStats() {
+    const { data } = await db.client().rpc('visits_stats');
+    return data || null;
+  },
+  /* 最近访问（管理员） */
+  async mgrVisits(limit) {
+    const { data, error } = await db.client().rpc('visits_recent', { p_limit: limit || 50 });
+    if (error) throw new Error(error.message);
+    return data || [];
+  },
+  /* 最近审计（管理员） */
+  async mgrAudit(limit) {
+    const { data, error } = await db.client().rpc('audit_recent', { p_limit: limit || 50 });
+    if (error) throw new Error(error.message);
+    return data || [];
+  },
+  /* 封禁列表（管理员） */
+  async mgrBans() {
+    const { data, error } = await db.client().rpc('bans_list');
+    if (error) throw new Error(error.message);
+    return data || [];
+  },
+  /* 添加封禁（管理员） */
+  async mgrBanAdd(type, value, reason, expiresTs) {
+    const { data, error } = await db.client().rpc('ban_add', { p_type: type, p_value: value, p_reason: reason || null, p_expires_ts: expiresTs || null });
+    if (error) throw new Error(error.message);
+    return data;
+  },
+  /* 移除封禁（管理员） */
+  async mgrBanRemove(id) {
+    const { error } = await db.client().rpc('ban_remove', { p_id: id });
+    if (error) throw new Error(error.message);
+  },
+  /* 用户列表（管理员） */
+  async mgrUsers() {
+    const { data, error } = await db.client().rpc('users_list');
+    if (error) throw new Error(error.message);
+    return data || [];
+  },
+  /* 封禁用户（管理员） */
+  async mgrUserBan(email, untilTs) {
+    const { error } = await db.client().rpc('user_ban', { p_email: email, p_until_ts: untilTs || null });
+    if (error) throw new Error(error.message);
+  },
+  /* 解封用户（管理员） */
+  async mgrUserUnban(email) {
+    const { error } = await db.client().rpc('user_unban', { p_email: email });
+    if (error) throw new Error(error.message);
   }
 };
