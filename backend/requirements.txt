@@ -1,0 +1,5 @@
+flask>=3.0
+musicdl>=2.13
+gunicorn>=21
+requests>=2.31
+# 注意：musicdl>=2.13 使用 typing.Unpack，需 Python 3.11+ 运行；3.10 会导入失败。

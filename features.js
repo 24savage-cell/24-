@@ -54,9 +54,18 @@
     },
 
     /* ==========================================================
-       声匣音乐 · Music Box（Deezer 公开试听接口）
+       声匣音乐 · Music Box（走后端代理，前端绝不直连第三方）
+       MUSIC_API_BASE 指向自托管的 Flask+musicdl 服务。
+       后端未部署时优雅降级并提示，而不是偷偷回落到直连。
        ========================================================== */
-    music: { audio: new Audio(), cur: null },
+    music: {
+      audio: new Audio(),
+      cur: null,
+      // 默认同源 /backend 前缀；部署到独立域名时改这里
+      apiBase:
+        (window.__MUSIC_API__ && window.__MUSIC_API__.base) ||
+        (location.origin.startsWith('http') ? location.origin : '')
+    },
     armMusic() {
       const open = $('#musicOpenBtn'), mb = $('#musicModal');
       if (!open || !mb) return;
@@ -79,49 +88,75 @@
       if (!q) { msg.textContent = '请输入要搜索的音乐关键词'; msg.hidden = false; return; }
       msg.hidden = true;
       this.musicPlayStop();
-      list.innerHTML = '<li class="chat-loading">正在调取公开试听源…</li>';
+      list.innerHTML = '<li class="chat-loading">正在通过档案馆声匣检索…</li>';
       try {
-        const url = `https://api.deezer.com/search?q=${encodeURIComponent(q)}&limit=12&order=RANKING`;
-        const res = await fetch(url, { cache: 'no-store' });
-        if (!res.ok) throw new Error('HTTP ' + res.status);
-        const j = await res.json();
-        const docs = (j && j.data) || [];
-        if (!docs.length) { list.innerHTML = '<li class="chat-loading">没有找到相关试听，换个词试试。</li>'; return; }
+        const url = this.music.apiBase + '/api/search';
+        const res = await fetch(url, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ q }),
+          cache: 'no-store'
+        });
+        if (res.status === 429) {
+          list.innerHTML = '<li class="chat-loading">检索太频繁，请稍候片刻再试。</li>';
+          return;
+        }
+        let j = null;
+        try { j = await res.json(); } catch { }
+        if (!res.ok || !j || !j.ok) {
+          const reason = (j && j.error) || ('HTTP ' + res.status);
+          list.innerHTML = '<li class="chat-loading">声匣后端暂时不可达：' + esc(reason) + '</li>';
+          return;
+        }
+        const docs = (j && j.results) || [];
+        if (!docs.length) { list.innerHTML = '<li class="chat-loading">没有找到相关曲目，换个词试试。</li>'; return; }
         list.innerHTML = '';
         docs.forEach(d => list.appendChild(this.musicRow(d)));
       } catch (e) {
         console.warn(e);
-        list.innerHTML = '<li class="chat-loading">公开试听源暂时不可达，请稍后再试。</li>';
+        list.innerHTML = '<li class="chat-loading">声匣后端暂时不可达，请稍后再试。<br>（如未部署自托管后端，前端不会替代它直连第三方）</li>';
       }
     },
     musicRow(d) {
       const li = document.createElement('li');
       li.className = 'music-item';
-      const title = d.title || '未知曲名';
-      const artist = (d.artist && d.artist.name) || '';
-      const album = (d.album && d.album.title) || '';
-      const cover = d.album && d.album.cover_small;
+      const cover = ''; // 后端可扩展返回 cover；此处留空用占位
       li.innerHTML = `
-        ${cover ? `<div class="music-cover"><img loading="lazy" src="${esc(cover)}" alt="" onerror="this.style.visibility='hidden'"></div>` : '<div class="music-cover"></div>'}
+        <div class="music-cover">${cover ? `<img loading="lazy" src="${esc(cover)}" alt="">` : '<span class="music-cover-glyph">♪</span>'}</div>
         <div class="music-info">
-          <strong>${esc(title)}</strong>
-          <small>${esc(artist)}${album ? ' · ' + esc(album) : ''}${d.duration ? ' · ' + this.fmtDur(d.duration) : ''}</small>
+          <strong>${esc(d.title || '未知曲名')}</strong>
+          <small>${esc(d.artist || '未知艺术家')}${d.source ? ' · ' + esc(d.source) : ''}${d.duration ? ' · ' + this.fmtDur(d.duration) : ''}</small>
         </div>
         <div class="music-acts">
           <button class="btn btn-line btn-s" type="button" data-play>试听 <span class="btn-en">PLAY</span></button>
-          <button class="btn btn-ghost btn-s" type="button" data-dl>下载 <span class="btn-en">DL</span></button>
+          <button class="btn btn-ghost btn-s" type="button" data-dl>取链 <span class="btn-en">LINK</span></button>
         </div>`;
-      li.__url = 'https://api.deezer.com/track/' + d.id;
-      li.querySelector('[data-play]').addEventListener('click', () => this.musicPlay(li, d.preview));
-      li.querySelector('[data-dl]').addEventListener('click', () => {
-        if (d.preview) window.open(d.preview, '_blank', 'noopener');
-        else toast('该曲目暂无试听文件', true);
-      });
+      li.__track = d;
+      li.querySelector('[data-play]').addEventListener('click', () => this.musicPlay(li));
+      li.querySelector('[data-dl]').addEventListener('click', () => this.musicFetchPlayUrl(li));
       return li;
     },
-    musicPlay(li, url) {
+    // 向后端申请该曲目的临时播放票据
+    async musicFetchTrackUrl(li) {
+      const d = li.__track;
+      if (!d || !d.ticket) throw new Error('无票据');
+      const url = this.music.apiBase + '/api/play';
+      const res = await fetch(url, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ token: d.ticket })
+      });
+      const j = await res.json().catch(() => ({}));
+      if (!res.ok || !j.ok) throw new Error(j.error || ('HTTP ' + res.status));
+      return j.url;
+    },
+    async musicPlay(li) {
+      // 先拿临时播放地址，关键：即使后端只回直链，也非前端自己编的
+      let url;
+      try { url = await this.musicFetchTrackUrl(li); }
+      catch (e) { toast('取播放地址失败：' + e.message, true, 4200); return; }
+      if (!url) { toast('该源暂未返回可播放地址，换一首试试', true, 4200); return; }
       const a = this.music.audio;
-      // 若点击的是当前曲目：切换播放/暂停
       if (this.music.cur === li && !a.paused) { a.pause(); this.musicSyncBtn(li, false); return; }
       this.musicPlayStop();
       this.music.cur = li;
@@ -129,6 +164,11 @@
       a.onended = () => this.musicSyncBtn(li, false);
       a.onpause = () => this.musicSyncBtn(li, false);
       a.play().then(() => this.musicSyncBtn(li, true)).catch(() => this.musicSyncBtn(li, false));
+    },
+    musicFetchPlayUrl(li) {
+      this.musicFetchTrackUrl(li)
+        .then(url => { if (url) { window.open(url, '_blank', 'noopener'); toast('已打开临时试听地址'); } else toast('暂无直链，可先试听', true, 3600); })
+        .catch(e => toast('取链失败：' + e.message, true, 4200));
     },
     musicSyncBtn(li, playing) {
       if (!li) return;
