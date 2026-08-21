@@ -45,10 +45,13 @@
     <span class="brand-txt">野性档案<small>SAVAGE&nbsp;ARCHIVE</small></span>
   </a>
   <div class="topbar-actions">
+    <span id="onlineChip" class="chip chip-online" title="当前在线访客" hidden>● ···</span>
     <button id="statusChip" class="chip chip-init" type="button" title="云同步状态">● 云端待激活</button>
     <button id="authBtn" class="btn btn-ghost" type="button">注册 / 登录</button>
     <button id="meChip" class="chip chip-me" type="button" hidden></button>
     <button id="adminEntry" class="btn btn-ghost" type="button" title="管理后台">管理 <span class="btn-en">ADMIN</span></button>
+    <button id="musicOpenBtn" class="btn btn-line" type="button" title="免费音乐留音机">声匣 <span class="btn-en">MUSIC</span></button>
+    <button id="faithOpenBtn" class="btn btn-line" type="button" title="档案馆每日信标">信标 <span class="btn-en">BEACON</span></button>
     <button id="chatOpenBtn" class="btn btn-line" type="button" title="进入聊天室">聊天室 <span class="btn-en">ROOM</span></button>
     <button id="uploadBtn" class="btn btn-solid" type="button">投稿 <span class="btn-en">UPLOAD</span></button>
   </div>
@@ -89,6 +92,7 @@
         <button class="seg-btn" data-filter="guest" type="button">观众投稿</button>
       </div>
       <span class="hall-count" id="hallCount">—</span>
+      <button id="shuffleBtn" class="btn btn-line btn-s" type="button" title="随机抽一件作品">抽一件 <span class="btn-en">DRAW</span></button>
     </div>
   </div>
 
@@ -438,6 +442,48 @@
   </div>
 </div>
 
+<!-- 声匣 · 免费音乐留音机（第三方公开音频，仅供预览体验） -->
+<div id="musicModal" class="modal" hidden role="dialog" aria-modal="true" aria-label="声匣音乐">
+  <div class="modal-card modal-card-lg">
+    <div class="modal-head">
+      <h3>声匣 <span class="modal-en">MUSIC&nbsp;BOX</span></h3>
+      <button class="modal-x" data-close type="button" aria-label="关闭">✕</button>
+    </div>
+    <div class="modal-body">
+      <p class="cap-tip">通过公开音乐接口搜索曲目，30 秒官方试听片段可在线播放或免费下载。</p>
+      <div class="music-search">
+        <input id="muQuery" type="text" maxlength="60" placeholder="输入歌手 / 曲名 / 关键词… 回车搜索" spellcheck="false">
+        <button id="muGo" class="btn btn-solid" type="button">搜 <span class="btn-en">SEARCH</span></button>
+      </div>
+      <p id="muMsg" class="au-msg" hidden></p>
+      <ul id="muList" class="music-list" aria-live="polite"></ul>
+      <p class="modal-note">试听片段为各曲目官方公开的 30 秒预览，仅供试听体验；如需完整作品请在正版平台聆听。</p>
+    </div>
+    <div class="modal-foot">
+      <button class="btn btn-ghost" data-close type="button">关闭</button>
+    </div>
+  </div>
+</div>
+
+<!-- 每日信标 · 档案馆的今日一签 -->
+<div id="faithModal" class="modal" hidden role="dialog" aria-modal="true" aria-label="每日信标">
+  <div class="modal-card modal-card-sm">
+    <div class="modal-head">
+      <h3>每日信标 <span class="modal-en">DAILY&nbsp;BEACON</span></h3>
+      <button class="modal-x" data-close type="button" aria-label="关闭">✕</button>
+    </div>
+    <div class="modal-body">
+      <p class="cap-tip" id="faithKicker"></p>
+      <blockquote class="faith-ring" id="faithQuote"></blockquote>
+      <p class="faith-src" id="faithSrc"></p>
+      <p class="modal-note" id="faithNote"></p>
+    </div>
+    <div class="modal-foot">
+      <button class="btn btn-ghost" data-close type="button">关闭</button>
+    </div>
+  </div>
+</div>
+
 <div id="toasts" class="toasts" aria-live="polite"></div>
 
 <script src="https://cdn.jsdelivr.net/npm/gsap@3.12.5/dist/gsap.min.js"></script>
@@ -450,5 +496,6 @@
 <script src="supabase.js"></script>
 <script src="beautify.js"></script>
 <script src="app.js"></script>
+<script src="features.js"></script>
 </body>
 </html>

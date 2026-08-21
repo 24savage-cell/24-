@@ -696,3 +696,44 @@ button{font-family:inherit;cursor:pointer}
 }
 .hero-notes:hover{color:var(--verm);border-color:var(--verm)}
 .hero-notes .btn-en{font-family:var(--mono);font-size:9px;letter-spacing:.2em;color:var(--bone-faint)}
+
+/* ============================================================
+   功能扩展：在线人数 / 声匣音乐 / 每日信标 / 随机抽件
+   ============================================================ */
+#onlineChip.chip-online{color:#8fce6f;border-color:rgba(143,206,111,.45)}
+#onlineChip.chip-online{font-family:var(--mono);font-size:11px}
+#onlineChip .pulse-dot{display:inline-block;width:7px;height:7px;border-radius:50%;background:#8fce6f;margin-right:7px;animation:onlinePulse 1.6s infinite}
+@keyframes onlinePulse{0%,100%{opacity:1;box-shadow:0 0 0 0 rgba(143,206,111,.5)}50%{opacity:.55;box-shadow:0 0 0 5px rgba(143,206,111,0)}}
+
+/* 抽件按钮 */
+#shuffleBtn{margin-left:4px}
+
+/* 声匣音乐 */
+.music-search{display:flex;gap:8px;margin-bottom:14px}
+.music-search input{flex:1;min-width:0;background:var(--ink);border:1px solid var(--hair);border-radius:2px;color:var(--bone);font-family:var(--sans);font-size:14px;padding:11px 13px;transition:border-color .25s}
+.music-search input:focus{outline:none;border-color:var(--verm)}
+.music-list{list-style:none;margin:0;padding:0;max-height:300px;overflow-y:auto;display:flex;flex-direction:column;gap:8px}
+.music-list .chat-loading{font-family:var(--mono);font-size:11px;color:var(--bone-faint);letter-spacing:.1em;text-align:center;padding:22px 0}
+.music-item{display:flex;align-items:center;gap:12px;justify-content:space-between;padding:8px 12px;border:1px solid var(--hair-soft);border-radius:2px;background:var(--ink);transition:border-color .25s}
+.music-item:hover{border-color:var(--hair)}
+.music-cover{flex:0 0 auto;width:46px;height:46px;border:1px solid var(--hair-soft);border-radius:2px;overflow:hidden;background:var(--ink-3)}
+.music-cover img{width:100%;height:100%;object-fit:cover;display:block}
+.music-info{flex:1;min-width:0}
+.music-info strong{display:block;font-family:var(--serif);font-weight:600;font-size:14px;color:var(--bone);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.music-info small{display:block;font-family:var(--mono);font-size:10px;color:var(--bone-faint);margin-top:3px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.music-acts{display:flex;gap:6px;flex:0 0 auto}
+.music-acts .btn.is-playing{background:var(--bone);color:var(--ink);border-color:var(--bone)}
+.music-bar{display:flex;align-items:center;gap:8px;padding:9px 12px;border:1px solid rgba(143,206,111,.4);border-radius:2px;background:rgba(143,206,111,.06)}
+.music-bar-inner{font-family:var(--mono);font-size:11px;color:#8fce6f;letter-spacing:.05em;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.music-bar-inner b{color:var(--verm)}
+
+/* 每日信标 */
+.faith-ring{font-family:var(--serif);font-weight:600;font-size:21px;line-height:1.6;color:var(--bone);margin:6px 0 14px;padding:20px 18px;border-left:3px solid var(--verm);background:var(--ink);border-radius:2px}
+.faith-src{font-family:var(--mono);font-size:11px;letter-spacing:.1em;color:var(--verm);text-align:right}
+
+/* 移动端：抽件按钮与计数换行 */
+@media(max-width:720px){
+  .hall-tools #shuffleBtn{margin-left:0;margin-top:10px}
+  .music-item{flex-wrap:wrap}
+  .music-acts{width:100%;justify-content:flex-end}
+}
