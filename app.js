@@ -157,6 +157,8 @@ function renderAll(newId) {
 
   const contributors = new Set(arr.map(a => a.by || '匿名观众')).size;
   $('#hallCount').textContent = `N=${arr.length} · 投稿者 ${contributors} 人`;
+  const numWorks = $('#numWorks');
+  if (numWorks) numWorks.textContent = arr.length;
   updateTicker();
   observeImgs();
 }
@@ -245,9 +247,18 @@ async function openLb(pos) {
     src = db.pubUrl(a.imgkey);
     S.fullCache.set(a.id, src);
   }
-  img.onload = () => { load.hidden = true; };
+  img.onload = () => { load.hidden = true; preloadLbNeighbors(); };
   img.onerror = () => { load.hidden = true; };
   if (src) img.src = src; else { load.hidden = true; }
+}
+/* 预载相邻作品，翻页不等待 */
+function preloadLbNeighbors() {
+  for (const off of [-1, 1]) {
+    const n = S.lbList[(S.lbPos + off + S.lbList.length) % S.lbList.length];
+    if (!n || n.seed || !n.imgkey) continue;
+    const u = db.pubUrl(n.imgkey);
+    if (u) { const im = new Image(); im.src = u; }
+  }
 }
 function closeLb() {
   $('#lightbox').hidden = true;
@@ -276,13 +287,9 @@ async function toggleLike(id) {
     const pos = S.lbList.findIndex(x => x.id === id);
     if (pos >= 0) { S.lbPos = pos; updateLbLike(S.lbList[pos]); }
   }
-  // 云端计数（仅云端投稿，RPC 受 RLS 保护）
-  if (!a.seed && a.store === 'cloud') {
-    try {
-      const dir = liked ? -1 : 1;
-      localStorage.setItem('sa_likedb_' + id, String(Number(localStorage.getItem('sa_likedb_' + id) || 0) + dir));
-      await db.like(id);
-    } catch { }
+  // 云端计数：仅"新点赞"时 +1（服务端按会话幂等）；取消点赞只影响本地显示
+  if (!a.seed && a.store === 'cloud' && !liked) {
+    try { await db.like(id); } catch { }
   }
 }
 
@@ -683,16 +690,18 @@ async function renderAdmList(v) {
     const el = document.createElement('div');
     el.className = 'adm-item';
     el.innerHTML = `
-      <img class="adm-thumb" src="${esc(db.pubUrl(r.thumb_key) || r.thumb || '')}" alt="" onerror="this.style.visibility='hidden'">
+      <img class="adm-thumb" src="${esc(db.pubUrl(r.thumb_key) || r.thumb || '')}" alt="">
       <div class="adm-meta">
         <strong>${esc(r.title)}</strong>
-        <span class="adm-sub">by ${esc(r.by)} · ${fmtTs(r.ts)}${r.no ? ' · Nº ' + esc(r.no) : ''}</span>
+        <span class="adm-sub">by ${esc(r.by)} · ${fmtTs(r.ts)}${r.no && r.no !== '000' ? ' · Nº ' + esc(r.no) : ''}</span>
         <span class="adm-desc">${esc(r.desc || '')}</span>
       </div>
       <div class="adm-actions">
         ${r.status !== 'approved' ? `<button class="btn btn-solid btn-s" data-adm-approve="${esc(r.id)}">批准</button>` : `<button class="btn btn-line btn-s" data-adm-reject="${esc(r.id)}">下架</button>`}
         <button class="btn btn-ghost btn-s danger" data-adm-del="${esc(r.id)}">删除</button>
       </div>`;
+    const thumb = el.querySelector('.adm-thumb');
+    if (thumb) thumb.addEventListener('error', () => { thumb.style.visibility = 'hidden'; });
     wrap.appendChild(el);
   });
 
@@ -1172,7 +1181,12 @@ const CHAT = {
     if (me) li.classList.add('me');
     const kindTag = m.kind === 'account' ? '<span class="chat-kind">账号</span>' : (m.kind === 'seed' ? '<span class="chat-kind">馆方</span>' : '');
     const author = m.kind === 'seed' ? (m.author || '24.savage') : m.author;
-    li.innerHTML = `<span class="chat-name">${esc(author)}${kindTag}${me ? ' · 你' : ''}</span>${esc(m.body)}`;
+    let hhmm = '';
+    if (m.ts) {
+      const d = new Date(Number(m.ts));
+      if (!isNaN(d.getTime())) hhmm = String(d.getHours()).padStart(2, '0') + ':' + String(d.getMinutes()).padStart(2, '0');
+    }
+    li.innerHTML = `<span class="chat-name">${esc(author)}${kindTag}${me ? ' · 你' : ''}${hhmm ? `<time class="chat-time">${hhmm}</time>` : ''}</span>${esc(m.body)}`;
     list.appendChild(li);
     if (isNew) this.scrollBottom(true);
   },

@@ -66,6 +66,8 @@ const BEAUTIFY = (() => {
   /* GSAP 滚动光效：随鼠标在展厅浮动一道晕光 */
   function initAura() {
     if (typeof gsap === 'undefined') return;
+    if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+    if (window.matchMedia('(hover: none)').matches) return; /* 触屏设备无鼠标轨迹，跳过 */
     const div = document.createElement('div');
     div.className = 'g-aura';
     div.style.cssText = 'position:fixed;width:520px;height:520px;border-radius:50%;pointer-events:none;z-index:5;opacity:0;transform:translate(-50%,-50%);mix-blend-mode:screen;background:radial-gradient(circle,rgba(255,75,31,.10),transparent 60%);will-change:left,top;';
@@ -93,6 +95,41 @@ const BEAUTIFY = (() => {
     if (typeof AOS !== 'undefined') AOS.refresh();
   }
 
+  /* ---------- 滚动进度 + 返回顶部 ---------- */
+  function initScrollUI() {
+    const reduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    const bar = document.createElement('div');
+    bar.className = 'scroll-progress';
+    bar.setAttribute('aria-hidden', 'true');
+    document.body.appendChild(bar);
+
+    const top = document.createElement('button');
+    top.className = 'to-top';
+    top.type = 'button';
+    top.setAttribute('aria-label', '返回顶部');
+    top.innerHTML = '↑<span class="to-top-en">TOP</span>';
+    document.body.appendChild(top);
+    top.addEventListener('click', () => {
+      if (lenis) lenis.scrollTo(0, { duration: 1.0 });
+      else window.scrollTo({ top: 0, behavior: reduced ? 'auto' : 'smooth' });
+    });
+
+    let ticking = false;
+    const onScroll = () => {
+      if (ticking) return;
+      ticking = true;
+      requestAnimationFrame(() => {
+        const h = document.documentElement;
+        const max = h.scrollHeight - h.clientHeight;
+        bar.style.setProperty('--sp', (max > 0 ? h.scrollTop / max : 0).toFixed(4));
+        top.classList.toggle('show', h.scrollTop > 640);
+        ticking = false;
+      });
+    };
+    window.addEventListener('scroll', onScroll, { passive: true });
+    onScroll();
+  }
+
   /* 开放接口 */
   return {
     init: function () {
@@ -100,6 +137,7 @@ const BEAUTIFY = (() => {
       initLenis();
       initAOS();
       initAura();
+      initScrollUI();
       /* 主视觉编排延迟到开场印记淡出后再播放 */
       const boot = document.getElementById('boot');
       const delay = boot && !boot.classList.contains('done') ? 1250 : 120;

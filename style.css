@@ -741,3 +741,209 @@ button{font-family:inherit;cursor:pointer}
   .music-item{flex-wrap:wrap}
   .music-acts{width:100%;justify-content:flex-end}
 }
+
+/* ============================================================
+   V2 美学升级 · MUSEUM POLISH
+   原则：不改骨架，只磨细节——档案感、印刷感、仪式感
+   ============================================================ */
+
+/* ---------- 滚动进度（朱红细线，档案尺感） ---------- */
+.scroll-progress{
+  position:fixed;top:0;left:0;right:0;height:2px;z-index:1600;pointer-events:none;
+  background:transparent;
+}
+.scroll-progress::before{
+  content:"";display:block;height:100%;
+  background:linear-gradient(90deg,var(--verm-deep),var(--verm) 60%,#ff8d5e);
+  transform-origin:0 50%;
+  transform:scaleX(var(--sp,0));
+  transition:transform .12s linear;
+  box-shadow:0 0 8px rgba(255,75,31,.5);
+}
+
+/* ---------- 返回顶部（印章式方块） ---------- */
+.to-top{
+  position:fixed;right:22px;bottom:26px;z-index:1500;
+  width:46px;height:46px;
+  background:var(--ink-2);border:1px solid var(--hair);border-radius:2px;
+  color:var(--bone);font-family:var(--serif);font-weight:900;font-size:17px;
+  display:flex;flex-direction:column;align-items:center;justify-content:center;gap:1px;
+  opacity:0;visibility:hidden;transform:translateY(14px) rotate(3deg);
+  transition:.35s var(--ease);
+}
+.to-top-en{font-family:var(--mono);font-size:7px;letter-spacing:.3em;color:var(--bone-faint)}
+.to-top.show{opacity:1;visibility:visible;transform:translateY(0) rotate(0)}
+.to-top:hover{background:var(--verm);border-color:var(--verm);color:var(--ink);transform:translateY(-2px) rotate(-3deg)}
+.to-top:hover .to-top-en{color:rgba(14,13,11,.6)}
+@media(max-width:860px){.to-top{right:14px;bottom:18px;width:42px;height:42px}}
+
+/* ---------- 键盘可达性：朱红焦点环 ---------- */
+:focus-visible{outline:2px solid var(--verm);outline-offset:2px;border-radius:2px}
+.modal :focus-visible{outline-offset:1px}
+
+/* ---------- 按钮按压反馈 ---------- */
+.btn:active{transform:translateY(1px) scale(.985)}
+.btn-solid:active{transform:translateY(1px) scale(.985)}
+.seg-btn:active{transform:scale(.97)}
+
+/* ---------- 主视觉：巨幅水印 + 暗角 ---------- */
+.hero{background:
+  radial-gradient(120% 90% at 78% 8%,rgba(255,75,31,.07),transparent 52%),
+  radial-gradient(90% 70% at 12% 95%,rgba(236,229,216,.035),transparent 55%),
+  var(--ink);
+}
+.hero-frame::before{
+  content:"24";
+  position:absolute;right:-1.5%;top:-14%;z-index:0;pointer-events:none;
+  font-family:var(--serif);font-weight:900;font-style:italic;
+  font-size:clamp(220px,34vw,520px);line-height:1;
+  color:transparent;-webkit-text-stroke:1px rgba(236,229,216,.055);
+  letter-spacing:-.04em;user-select:none;
+}
+.hero-frame > *{position:relative;z-index:1}
+.hero-cn{font-optical-sizing:auto;text-shadow:0 2px 30px rgba(0,0,0,.4)}
+.hero-cta .btn-solid{box-shadow:0 6px 24px rgba(255,75,31,.22)}
+.hero-cta .btn-solid:hover{box-shadow:0 10px 32px rgba(236,229,216,.15)}
+@media(max-width:860px){.hero-frame::before{right:-8%;top:-6%;font-size:200px}}
+
+/* ---------- 走马灯：悬停驻停 ---------- */
+.ticker{position:relative}
+.ticker::before,.ticker::after{
+  content:"";position:absolute;top:0;bottom:0;width:70px;z-index:2;pointer-events:none;
+}
+.ticker::before{left:0;background:linear-gradient(90deg,var(--ink-2),transparent)}
+.ticker::after{right:0;background:linear-gradient(-90deg,var(--ink-2),transparent)}
+.ticker:hover .ticker-track{animation-play-state:paused}
+.ticker-track span{transition:color .3s}
+.ticker:hover .ticker-track span{color:var(--bone-dim)}
+
+/* ---------- 展厅标题：朱红索引标 ---------- */
+.hall-title{position:relative;display:inline-flex;align-items:baseline;gap:12px}
+.hall-title::before{
+  content:"";width:10px;height:10px;background:var(--verm);
+  transform:rotate(45deg) translateY(-2px);flex:0 0 auto;
+}
+
+/* ---------- 展牌：装裱感 ---------- */
+.plate{background:linear-gradient(180deg,var(--ink-2),#131110)}
+.plate-imgwrap{margin:9px;border:1px solid rgba(236,229,216,.05)}
+.plate-imgwrap::before{
+  content:"";position:absolute;inset:5px;z-index:1;pointer-events:none;
+  border:1px solid rgba(236,229,216,.045);
+}
+.plate-title{position:relative;display:inline-block}
+.plate-title::after{
+  content:"";position:absolute;left:0;bottom:-2px;height:1px;width:0;
+  background:var(--verm);transition:width .35s var(--ease);
+}
+.plate:hover .plate-title::after{width:100%}
+.plate-like:active{transform:scale(1.25)}
+.plate-like{transition:transform .18s var(--ease),color .2s}
+
+/* ---------- 展厅数据：悬停点亮 ---------- */
+.num-block{transition:background .3s var(--ease);position:relative;overflow:hidden}
+.num-block::after{
+  content:"";position:absolute;left:0;top:0;bottom:0;width:2px;
+  background:var(--verm);transform:scaleY(0);transform-origin:top;
+  transition:transform .35s var(--ease);
+}
+.num-block:hover{background:#191512}
+.num-block:hover::after{transform:scaleY(1)}
+.num-block strong{transition:color .3s}
+.num-block:hover strong{color:var(--bone)}
+
+/* ---------- 策展人手记：纸卡感 ---------- */
+.cut-note{transition:transform .35s var(--ease),background .35s var(--ease),box-shadow .35s var(--ease)}
+.cut-note:hover{
+  background:#1a1713;transform:translateY(-4px);
+  box-shadow:0 16px 36px rgba(0,0,0,.42);
+}
+.cut-no{
+  display:inline-block;border:1px solid rgba(255,75,31,.4);
+  padding:3px 9px;transform:rotate(-2deg);
+  transition:.3s var(--ease);
+}
+.cut-note:hover .cut-no{background:var(--verm);color:var(--ink);transform:rotate(2deg)}
+
+/* ---------- 馆藏档案：节点刻度 ---------- */
+.dos-item{position:relative}
+.dos-item::before{
+  content:"";position:absolute;left:-17px;top:50%;width:7px;height:7px;
+  background:var(--ink);border:1px solid var(--bone-faint);
+  transform:translateY(-50%) rotate(45deg);transition:.3s;
+}
+.dos-item:hover::before{background:var(--verm);border-color:var(--verm)}
+.dos-list{position:relative;margin-left:17px;padding-left:0}
+.dos-list::before{
+  content:"";position:absolute;left:-14px;top:12px;bottom:12px;width:1px;
+  background:var(--hair-soft);
+}
+.dos-year{border:1px solid var(--hair-soft);padding:3px 8px;border-radius:2px}
+
+/* ---------- 弹窗：印刷裁切角标 ---------- */
+.modal-card{position:relative}
+.modal-card::before,.modal-card::after{
+  content:"";position:absolute;width:14px;height:14px;pointer-events:none;z-index:1;
+  border-color:rgba(255,75,31,.55);border-style:solid;
+}
+.modal-card::before{top:5px;left:5px;border-width:1px 0 0 1px}
+.modal-card::after{bottom:5px;right:5px;border-width:0 1px 1px 0}
+.modal-head{position:relative}
+.modal-head::after{
+  content:"";position:absolute;left:22px;bottom:-1px;width:44px;height:2px;background:var(--verm);
+}
+.chat-card{position:relative}
+.chat-card::before{
+  content:"";position:absolute;top:5px;left:5px;width:14px;height:14px;pointer-events:none;z-index:1;
+  border:1px solid rgba(255,75,31,.55);border-width:1px 0 0 1px;
+}
+
+/* ---------- 聊天：时间戳 ---------- */
+.chat-time{
+  float:right;margin-left:12px;font-size:8.5px;letter-spacing:.08em;
+  color:var(--bone-faint);opacity:.75;font-weight:400;
+}
+.chat-msg.me .chat-time{color:rgba(14,13,11,.5)}
+.chat-msg{transition:border-color .25s}
+.chat-msg.other:hover{border-color:var(--hair)}
+
+/* ---------- 在线徽标：呼吸点 ---------- */
+#onlineChip{position:relative;padding-left:22px}
+#onlineChip::before{
+  content:"";position:absolute;left:10px;top:50%;width:6px;height:6px;
+  border-radius:50%;background:#8fce6f;transform:translateY(-50%);
+  animation:onlinePulse 1.8s ease-in-out infinite;
+}
+
+/* ---------- 页脚收尾 ---------- */
+.colophon{position:relative}
+.colo-end{position:relative;padding-top:36px}
+.colo-end::before{
+  content:"◆";position:absolute;top:14px;left:50%;transform:translateX(-50%);
+  color:var(--verm);font-size:8px;
+}
+
+/* ---------- 灯箱细节 ---------- */
+.lb-panel{scrollbar-width:thin;scrollbar-color:#332e27 transparent}
+.lb-title{font-optical-sizing:auto}
+.lb-like:active{transform:scale(.97)}
+
+/* ---------- 顶栏移动端：单行横滑，不再堆叠 ---------- */
+@media(max-width:860px){
+  .topbar{flex-direction:column;align-items:stretch;gap:10px;padding:12px 16px}
+  .topbar-actions{
+    flex-wrap:nowrap;overflow-x:auto;justify-content:flex-start;
+    -webkit-overflow-scrolling:touch;scrollbar-width:none;
+    padding-bottom:2px;mask-image:linear-gradient(90deg,#000 92%,transparent);
+    -webkit-mask-image:linear-gradient(90deg,#000 92%,transparent);
+  }
+  .topbar-actions::-webkit-scrollbar{display:none}
+  .topbar-actions .btn,.topbar-actions .chip{flex:0 0 auto}
+}
+
+/* ---------- 弱化动效偏好 ---------- */
+@media(prefers-reduced-motion:reduce){
+  .grain{animation:none}
+  .ticker-track{animation:none}
+  .scroll-progress::before{transition:none}
+}

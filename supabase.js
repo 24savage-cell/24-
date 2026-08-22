@@ -46,9 +46,12 @@ const db = {
   async submit(art, { imgData, thumbData }) {
     const sb = db.client();
     const id = art.id;
-    const imgExt = imgData.substring(5, imgData.indexOf(';') + 1) ? 'webp' : 'jpg';
-    const imgKey = `art/${id}/img.${imgExt}`;
-    const thumbKey = `art/${id}/thumb.${imgExt}`;
+    /* 从 dataURL 的 mime 判断扩展名（浏览器压缩当前统一输出 jpeg） */
+    const mime = (imgData.match(/^data:(image\/[a-z0-9+.]+)/i) || [])[1] || '';
+    const imgExt = mime.includes('webp') ? 'webp' : 'jpg';
+    /* 新投稿落 pending/ 隔离区；管理员批准后由 art_approve 流程搬入 art/ 公开区 */
+    const imgKey = `pending/${id}/img.${imgExt}`;
+    const thumbKey = `pending/${id}/thumb.${imgExt}`;
 
     const upload = (key, dataUrl) => {
       const bytes = atob(dataUrl.split(',')[1]);
@@ -56,7 +59,7 @@ const db = {
       for (let i = 0; i < bytes.length; i++) arr[i] = bytes.charCodeAt(i);
       return sb.storage.from(SUPACFG.bucket).upload(key, arr.buffer, {
         contentType: 'image/' + imgExt,
-        upsert: true
+        upsert: false
       });
     };
     const [imgUp, thumbUp] = await Promise.all([upload(imgKey, imgData), upload(thumbKey, thumbData)]);
