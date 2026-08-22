@@ -14,7 +14,12 @@ const RESERVED_NAMES = ['24.savage', '24savage', 'savage', 'admin', 'curator', '
 /* ---------- 工具 ---------- */
 const $ = (s, p = document) => p.querySelector(s);
 const $$ = (s, p = document) => [...p.querySelectorAll(s)];
-const uid = () => Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
+/* 加密随机 ID（96bit），杜绝按时间戳猜测投稿对象密钥 */
+const uid = () => {
+  const a = new Uint8Array(12);
+  crypto.getRandomValues(a);
+  return [...a].map(b => b.toString(16).padStart(2, '0')).join('');
+};
 const pad3 = n => String(n).padStart(3, '0');
 const fmtTs = ts => {
   const d = new Date(ts);
@@ -85,7 +90,7 @@ async function init() {
 
 async function loadSeeds() {
   try {
-    const r = await fetch('works.json', { cache: 'force-cache' });
+    const r = await fetch('works.json', { cache: 'no-cache' });
     const data = await r.json();
     S.seeds = (data.arts || []).map(a => ({ ...a, seed: true, likes: Number(a.likes) || 0 }));
   } catch { S.seeds = []; }
@@ -710,24 +715,41 @@ async function renderAdmList(v) {
   wrap.querySelectorAll('[data-adm-del]').forEach(b => b.addEventListener('click', () => doDelete(b.dataset.admDel)));
 }
 
+/* 作品批准：先把对象从 pending/ 搬到 art/（管理员走 storage move），再调服务端 art_approve 重写状态/编号/密钥 */
 async function doApprove(id) {
   const row = (await db.listAll()).data.find(x => x.id === id);
   if (!row) return;
-  const no = pad3(row.no ? Number(String(row.no).replace(/\D/g, '')) : await nextNo());
-  const { error } = await db.adminUpdate(id, { status: 'approved', no });
-  if (error) { toast('批准失败：' + error.message, true); return; }
-  db.logAction('approve', `批准作品 ${row.title}（${id}）`);
-  toast('已批准，作品公开展出');
-  refreshAdminView(); loadCloud().then(renderAll);
+  try {
+    await moveArtObjects(row, 'pending', 'art');
+    const { data: newNo, error } = await db.client().rpc('art_approve', { p_id: id });
+    if (error) throw error;
+    db.logAction('approve', `批准作品 ${row.title}（${id}）→ Nº ${newNo}`);
+    toast(`已批准，编号 Nº ${newNo}，作品公开展出`);
+    refreshAdminView(); loadCloud().then(renderAll);
+  } catch (e) { toast('批准失败：' + (e.message || e), true); }
 }
 async function doReject(id) {
   if (!confirm('下架后作品将不再公开，可再次在待审中批准。继续？')) return;
   const row = (await db.listAll()).data.find(x => x.id === id);
-  const { error } = await db.adminUpdate(id, { status: 'pending', no: null });
-  if (error) { toast('下架失败：' + error.message, true); return; }
-  db.logAction('reject', `下架作品 ${row ? row.title : id}`);
-  toast('已下架');
-  refreshAdminView(); loadCloud().then(renderAll);
+  try {
+    if (row) await moveArtObjects(row, 'art', 'pending');
+    const { error } = await db.client().rpc('art_reject', { p_id: id });
+    if (error) throw error;
+    db.logAction('reject', `下架作品 ${row ? row.title : id}`);
+    toast('已下架');
+    refreshAdminView(); loadCloud().then(renderAll);
+  } catch (e) { toast('下架失败：' + (e.message || e), true); }
+}
+/* 在 pending/ 与 art/ 两个前缀之间搬移作品的原图+缩略图（幂等：源缺失时跳过） */
+async function moveArtObjects(row, from, to) {
+  if (!row) return;
+  const keys = [row.img_key, row.thumb_key].filter(Boolean);
+  for (const key of keys) {
+    if (!key.startsWith(from + '/')) continue;
+    const dst = to + '/' + key.slice(from.length + 1);
+    const { error } = await db.moveObject(key, dst);
+    if (error && !/not.?found|404/i.test(String(error.message || ''))) throw error;
+  }
 }
 async function doDelete(id) {
   if (!confirm('确认永久删除该作品及其图片？此操作不可恢复。')) return;
@@ -739,11 +761,6 @@ async function doDelete(id) {
     toast('已永久删除');
     refreshAdminView(); loadCloud().then(renderAll);
   } catch (e) { toast('删除失败：' + e.message, true); }
-}
-async function nextNo() {
-  const { data } = await db.client().from('art').select('no').neq('no', null);
-  const nums = (data || []).map(x => Number(String(x.no).replace(/\D/g, '')) || 0);
-  return (Math.max(0, ...nums) + 1);
 }
 
 /* 邮件服务（仅管理员面板） */

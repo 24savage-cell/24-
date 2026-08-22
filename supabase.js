@@ -151,6 +151,11 @@ const db = {
     return db.client().rpc('art_like', { target_id: id, p_liker: db.sessionId() });
   },
 
+  /* 对象搬移（管理员：批准/下架时在 pending/ 与 art/ 之间移动，走 storage move） */
+  moveObject(fromKey, toKey) {
+    return db.client().storage.from(SUPACFG.bucket).move(fromKey, toKey);
+  },
+
   /* ---------- 聊天室 ---------- */
 
   /* 拉取最近消息（倒序取 N 条，再按 id 正序展示） */
