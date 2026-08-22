@@ -143,9 +143,9 @@ const db = {
     if (error) throw new Error(error.message);
   },
 
-  /* 点赞（对已批准作品 +1/-1，幂等由客户端控制） */
+  /* 点赞（服务端幂等：登录按 uid、匿名按 session，且全局限流） */
   like(id) {
-    return db.client().rpc('art_like', { target_id: id });
+    return db.client().rpc('art_like', { target_id: id, p_liker: db.sessionId() });
   },
 
   /* ---------- 聊天室 ---------- */
