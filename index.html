@@ -4,6 +4,12 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <title>野性档案 SAVAGE ARCHIVE — 24.savage 的图片展览</title>
+<meta name="keywords" content="野性档案,AI插画,二次元,图片展览,画廊,AI绘画,投稿,SAVAGE ARCHIVE">
+<meta name="robots" content="index, follow">
+<meta name="theme-color" content="#0e0d0b">
+<link rel="manifest" href="manifest.json">
+<link rel="apple-touch-icon" href="icon-180.png">
+<link rel="canonical" href="https://24savage-cell.github.io/24-/">
 <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' https://cdn.jsdelivr.net; style-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net https://fonts.googleapis.com; font-src https://fonts.gstatic.com; img-src 'self' data: blob: https://vqjyhsznnuskxhsmfdxx.supabase.co; connect-src 'self' https://api.ipify.org https://vqjyhsznnuskxhsmfdxx.supabase.co wss://vqjyhsznnuskxhsmfdxx.supabase.co https://api.emailjs.com https://formsubmit.co; media-src 'self'; object-src 'none'; base-uri 'self'; frame-ancestors 'none'; form-action 'self' https://formsubmit.co">
 <link rel="preload" as="style" href="https://cdn.jsdelivr.net/npm/hover.css@2.3.2/css/hover-min.css" integrity="sha384-qwz/+Tn3z5AMzRwR+8wmMa+uJpiWCujlEQcX+WAXzRkyvRAQPbIvKqhhKV2UBit2" crossorigin="anonymous">
 <meta name="description" content="野性档案 SAVAGE ARCHIVE · 策展人 24.savage · 一座向所有观众开放的公网图片展览馆，支持注册账号或匿名投稿。">
@@ -74,6 +80,11 @@
     <button id="musicOpenBtn" class="btn btn-line" type="button" title="免费音乐留音机">声匣 <span class="btn-en">MUSIC</span></button>
     <button id="faithOpenBtn" class="btn btn-line" type="button" title="档案馆每日信标">信标 <span class="btn-en">BEACON</span></button>
     <button id="chatOpenBtn" class="btn btn-line" type="button" title="进入聊天室">聊天室 <span class="btn-en">ROOM</span></button>
+    <button id="bottleOpenBtn" class="btn btn-line" type="button" title="漂流瓶">🍶 <span class="btn-en">BOTTLE</span></button>
+    <button id="secretOpenBtn" class="btn btn-line" type="button" title="暗号彩蛋">🔑 <span class="btn-en">SECRET</span></button>
+    <button id="stampBtn" class="btn btn-line" type="button" title="签到集章">📮 <span class="btn-en">STAMP</span></button>
+    <button id="rankOpenBtn" class="btn btn-line" type="button" title="人气榜">🔥 <span class="btn-en">HOT</span></button>
+    <button id="themeBtn" class="btn btn-line" type="button" title="明暗主题">☀</button>
     <button id="uploadBtn" class="btn btn-solid" type="button">投稿 <span class="btn-en">UPLOAD</span></button>
   </div>
 </header>
@@ -117,6 +128,7 @@
     </div>
   </div>
 
+  <div id="dailyArt" class="daily-wrap"></div>
   <div id="grid" class="grid" aria-live="polite"></div>
 
   <div id="skeletons" class="grid" aria-hidden="true">
@@ -250,6 +262,13 @@
         <div><dt>来源 SOURCE</dt><dd id="lbSrc">—</dd></div>
       </dl>
       <button id="lbLike" class="lb-like" type="button">♥ <span id="lbLikeN">0</span></button>
+      <div id="lbComments" class="lb-comments" hidden>
+        <div id="lbCommentList" class="lb-comment-list"></div>
+        <div class="lb-comment-form">
+          <input id="lbCommentInput" type="text" maxlength="200" placeholder="说点什么…" autocomplete="off">
+          <button id="lbCommentSend" class="btn btn-solid btn-s" type="button">发送</button>
+        </div>
+      </div>
     </figcaption>
   </figure>
 </div>
@@ -381,6 +400,12 @@
       <label class="field">
         <span>密码 <em>PASSWORD</em></span>
         <input id="admPass" type="password" maxlength="64" autocomplete="current-password" placeholder="管理员密码">
+      </label>
+      <p id="admMsg" class="au-msg" hidden></p>
+    </div>
+
+    <!-- 已登录：后台面板 -->
+    <div class="modal-body" id=="password" maxlength="64" autocomplete="current-password" placeholder="管理员密码">
       </label>
       <p id="admMsg" class="au-msg" hidden></p>
     </div>
@@ -559,6 +584,76 @@
 
 <div id="toasts" class="toasts" aria-live="polite"></div>
 
+<!-- 漂流瓶 -->
+<div id="bottleModal" class="modal" hidden role="dialog" aria-modal="true" aria-label="漂流瓶">
+  <div class="modal-card">
+    <div class="modal-head">
+      <h3>漂流瓶 <span class="modal-en">MESSAGE&nbsp;BOTTLE</span></h3>
+      <button class="modal-x" id="bottleClose" type="button" aria-label="关闭">✕</button>
+    </div>
+    <div class="modal-body">
+      <p class="cap-tip">把一句话扔进档案馆的时间长河，再随机捞起陌生人留下的瓶子。</p>
+      <label class="field"><span>你的漂流瓶</span>
+        <textarea id="bottleInput" maxlength="140" rows="3" placeholder="写点什么，匿名漂流…"></textarea>
+      </label>
+      <p id="bottleMsg" class="au-msg" hidden></p>
+      <div class="modal-foot" style="padding-left:0;padding-right:0">
+        <button id="bottleThrow" class="btn btn-solid" type="button">🍶 扔出瓶子</button>
+        <button id="bottleFetchBtn" class="btn btn-line" type="button">🎣 捞一个</button>
+      </div>
+      <div class="bottle-result" id="bottleResult"></div>
+    </div>
+  </div>
+</div>
+
+<!-- 暗号彩蛋 -->
+<div id="secretModal" class="modal" hidden role="dialog" aria-modal="true" aria-label="暗号彩蛋">
+  <div class="modal-card">
+    <div class="modal-head">
+      <h3>暗号 <span class="modal-en">SECRET&nbsp;PASS</span></h3>
+      <button class="modal-x" id="secretClose" type="button" aria-label="关闭">✕</button>
+    </div>
+    <div class="modal-body">
+      <p class="cap-tip">档案馆有间暗格，知道暗号的人才能打开。传说暗号藏在站点的某个角落…</p>
+      <label class="field"><span>输入暗号</span>
+        <input id="secretInput" type="text" maxlength="64" placeholder="?" autocomplete="off" spellcheck="false">
+      </label>
+      <p id="secretMsg" class="au-msg" hidden></p>
+      <div class="modal-foot" style="padding-left:0;padding-right:0">
+        <button id="secretGo" class="btn btn-solid" type="button">🔓 开启暗格</button>
+      </div>
+      <div id="secretResult"></div>
+    </div>
+  </div>
+</div>
+
+<!-- 签到集章 -->
+<div id="stampModal" class="modal" hidden role="dialog" aria-modal="true" aria-label="签到集章">
+  <div class="modal-card">
+    <div class="modal-head">
+      <h3>签到集章 <span class="modal-en">DAILY&nbsp;STAMP</span></h3>
+      <button class="modal-x" id="stampClose" type="button" aria-label="关闭">✕</button>
+    </div>
+    <div class="modal-body" id="stampBody">
+      <p class="v3-loading">盖章中…</p>
+    </div>
+  </div>
+</div>
+
+<!-- 月度人气榜 -->
+<div id="rankModal" class="modal" hidden role="dialog" aria-modal="true" aria-label="人气榜">
+  <div class="modal-card">
+    <div class="modal-head">
+      <h3>人气榜 <span class="modal-en">TOP&nbsp;10</span></h3>
+      <button class="modal-x" id="rankClose" type="button" aria-label="关闭">✕</button>
+    </div>
+    <div class="modal-body">
+      <div id="rankList" class="rank-list"></div>
+    </div>
+  </div>
+</div>
+
+
 <script src="https://cdn.jsdelivr.net/npm/gsap@3.12.5/dist/gsap.min.js" integrity="sha384-g4NTh/Iv5PPU4xPyhEWqPcwtNXOvdaDI8LLnyYfyNZOjKJeYQyjzQ9X5275eBjpt" crossorigin="anonymous"></script>
 <script src="https://cdn.jsdelivr.net/npm/lenis@1.1.18/dist/lenis.min.js" integrity="sha384-tKsJDT6PlUI0pSBt9/sBKJluKgA19/a6mBrDsZaXotLB4ZYfMGM6xt6/WgGpYhTm" crossorigin="anonymous"></script>
 <script src="https://cdn.jsdelivr.net/npm/splitting@1.0.6/dist/splitting.min.js" integrity="sha384-taxnKSnzdVS5gZB4jZcieFZlmBPQMFqhdEmCScZsrIFCxX8Zizq4fKJJH5kBwMXT" crossorigin="anonymous"></script>
@@ -570,16 +665,6 @@
 <script src="beautify.js"></script>
 <script src="app.js"></script>
 <script src="features.js"></script>
-</body>
-</html>
-crossorigin="anonymous"></script>
-<script src="https://cdn.jsdelivr.net/npm/aos@2.3.4/dist/aos.js" integrity="sha384-n1AULnKdMJlK1oQCLNDL9qZsDgXtH6jRYFCpBtWFc+a9Yve0KSoMn575rk755NJZ" crossorigin="anonymous"></script>
-<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js" integrity="sha384-l8ah+VgaWtk1mvOe9VC+OirC6qHFF4yH7l7mKRidV9MSti3E9F463bMp6ZVN4kuC" crossorigin="anonymous"></script>
-<script src="security.js"></script>
-<script src="mail.js"></script>
-<script src="supabase.js"></script>
-<script src="beautify.js"></script>
-<script src="app.js"></script>
-<script src="features.js"></script>
+<script src="v3.js"></script>
 </body>
 </html>
