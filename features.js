@@ -55,7 +55,7 @@
 
     /* ==========================================================
        声匣音乐 · Music Box（走后端代理，前端绝不直连第三方）
-       MUSIC_API_BASE 指向自托管的 Flask+musicdl 服务。
+       MUSIC_API_BASE 指向 Supabase Edge Function 代理（GD音乐台免费API）。
        后端未部署时优雅降级并提示，而不是偷偷回落到直连。
        ========================================================== */
     music: {
@@ -64,7 +64,7 @@
       // 默认同源 /backend 前缀；部署到独立域名时改这里
       apiBase:
         (window.__MUSIC_API__ && window.__MUSIC_API__.base) ||
-        (location.origin.startsWith('http') ? location.origin : '')
+        'https://vqjyhsznnuskxhsmfdxx.supabase.co/functions/v1/music-proxy'
     },
     armMusic() {
       const open = $('#musicOpenBtn'), mb = $('#musicModal');
@@ -90,25 +90,20 @@
       this.musicPlayStop();
       list.innerHTML = '<li class="chat-loading">正在通过档案馆声匣检索…</li>';
       try {
-        const url = this.music.apiBase + '/api/search';
-        const res = await fetch(url, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ q }),
-          cache: 'no-store'
-        });
+        const url = this.music.apiBase + '?target=search&source=netease&name=' + encodeURIComponent(q) + '&count=20&pages=1';
+        const res = await fetch(url, { cache: 'no-store' });
         if (res.status === 429) {
           list.innerHTML = '<li class="chat-loading">检索太频繁，请稍候片刻再试。</li>';
           return;
         }
         let j = null;
         try { j = await res.json(); } catch { }
-        if (!res.ok || !j || !j.ok) {
+        if (!res.ok || (Array.isArray(j) ? false : j && j.error)) {
           const reason = (j && j.error) || ('HTTP ' + res.status);
-          list.innerHTML = '<li class="chat-loading">声匣后端暂时不可达：' + esc(reason) + '</li>';
+          list.innerHTML = '<li class="chat-loading">声匣暂时不可达：' + esc(reason) + '</li>';
           return;
         }
-        const docs = (j && j.results) || [];
+        const docs = Array.isArray(j) ? j : [];
         if (!docs.length) { list.innerHTML = '<li class="chat-loading">没有找到相关曲目，换个词试试。</li>'; return; }
         list.innerHTML = '';
         docs.forEach(d => list.appendChild(this.musicRow(d)));
@@ -120,12 +115,13 @@
     musicRow(d) {
       const li = document.createElement('li');
       li.className = 'music-item';
-      const cover = ''; // 后端可扩展返回 cover；此处留空用占位
+      const cover = ''; // 封面异步可选；此处用占位
+      const artist = Array.isArray(d.artist) ? d.artist.join(' / ') : (d.artist || '未知艺术家');
       li.innerHTML = `
         <div class="music-cover">${cover ? `<img loading="lazy" src="${esc(cover)}" alt="">` : '<span class="music-cover-glyph">♪</span>'}</div>
         <div class="music-info">
-          <strong>${esc(d.title || '未知曲名')}</strong>
-          <small>${esc(d.artist || '未知艺术家')}${d.source ? ' · ' + esc(d.source) : ''}${d.duration ? ' · ' + this.fmtDur(d.duration) : ''}</small>
+          <strong>${esc(d.name || d.title || '未知曲名')}</strong>
+          <small>${esc(artist)}${d.album ? ' · ' + esc(d.album) : ''}</small>
         </div>
         <div class="music-acts">
           <button class="btn btn-line btn-s" type="button" data-play>试听 <span class="btn-en">PLAY</span></button>
@@ -139,15 +135,11 @@
     // 向后端申请该曲目的临时播放票据
     async musicFetchTrackUrl(li) {
       const d = li.__track;
-      if (!d || !d.ticket) throw new Error('无票据');
-      const url = this.music.apiBase + '/api/play';
-      const res = await fetch(url, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ token: d.ticket })
-      });
+      if (!d || !d.url_id) throw new Error('无曲目ID');
+      const url = this.music.apiBase + '?target=url&source=netease&id=' + encodeURIComponent(d.url_id) + '&br=128';
+      const res = await fetch(url);
       const j = await res.json().catch(() => ({}));
-      if (!res.ok || !j.ok) throw new Error(j.error || ('HTTP ' + res.status));
+      if (!res.ok || !j || !j.url) throw new Error((j && j.error) || ('HTTP ' + res.status));
       return j.url;
     },
     async musicPlay(li) {
