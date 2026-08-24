@@ -210,9 +210,20 @@ const db = {
       const cached = JSON.parse(localStorage.getItem('sa_ip') || 'null');
       if (cached && Date.now() - cached.t < 86400000) ip = cached.ip;
       else {
-        const r = await fetch('https://api.ipify.org?format=json', { cache: 'no-store' });
-        const j = await r.json();
-        if (j && j.ip) { ip = j.ip; localStorage.setItem('sa_ip', JSON.stringify({ ip, t: Date.now() })); }
+        // 主源：ipify（海外）；备用：百度本地IP（国内可达）
+        try {
+          const r = await fetch('https://api.ipify.org?format=json', { cache: 'no-store' });
+          const j = await r.json();
+          if (j && j.ip) ip = j.ip;
+        } catch (e) {}
+        if (!ip) {
+          try {
+            const r2 = await fetch('https://qifu-api.baidubce.com/ip/local/geo/v1/district', { cache: 'no-store' });
+            const j2 = await r2.json();
+            if (j2 && j2.ip) ip = j2.ip;
+          } catch (e) {}
+        }
+        if (ip) localStorage.setItem('sa_ip', JSON.stringify({ ip, t: Date.now() }));
       }
     } catch (e) {}
     try {
