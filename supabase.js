@@ -218,9 +218,9 @@ const db = {
         } catch (e) {}
         if (!ip) {
           try {
-            const r2 = await fetch('https://qifu-api.baidubce.com/ip/local/geo/v1/district', { cache: 'no-store' });
-            const j2 = await r2.json();
-            if (j2 && j2.ip) ip = j2.ip;
+            const r2 = await fetch('https://api.ip.sb/ip', { cache: 'no-store' });
+            const t2 = (await r2.text()).trim();
+            if (t2 && /^[\d.]+$/.test(t2)) ip = t2;
           } catch (e) {}
         }
         if (ip) localStorage.setItem('sa_ip', JSON.stringify({ ip, t: Date.now() }));
